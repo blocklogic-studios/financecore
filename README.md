@@ -27,3 +27,9 @@ RBC, TD, Scotiabank, BMO, CIBC, National Bank, Desjardins, Vancity, Servus, Coas
 ## Studio
 
 [Blocklogic Studio](https://github.com/blocklogic-studios)
+
+## FinanceCore upcoming features
+FinanceCore is still in development, so we have big plans for this addon. Here is a few.
+- US tender
+- Adding support for our other addon (CarrierCore) to allow online payments and purchasing plans.     
+And so much more!
