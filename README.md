@@ -2,34 +2,31 @@
 
 Canadian multi-bank finance for Minecraft Bedrock **1.26+**.
 
-## v1.1.0
+## v1.1.1
 
-- Card embosser consumes blank cards and stamps lore (`id:card_…`)
-- ATM requires card id + PIN
-- PIN change / freeze / lost / reactivate
-- e-Transfer security Q&A, phone aliases, expiry + refund
-- Recurring direct deposit
-- Credit statement cycle, min payment, overdue
-- GST/HST on POS
-- Cheques (issue + clear)
-- CAD tender ($5–$100, coins)
+Bugfix release:
 
-## Institutions
-
-RBC, TD, Scotiabank, BMO, CIBC, National Bank, Desjardins, Vancity, Servus, Coast Capital, Tangerine, EQ Bank
+- Cheques stamp `chq_…` id into item lore (deposit works)
+- Amount inputs reject NaN / invalid values
+- Credit & savings interest scaled (~1 day APR per real day of play)
+- Min payment never exceeds balance (small balances can clear)
+- Business credit emboss uses business limits
+- CAD bills stack to 64
+- ATM requires **your** card; POS requires cardholder online
+- Block cost / tax settings: ops or `financecore_admin` tag only
+- Unresolved e-Transfers only visible if your registered phone matches
 
 ## Install
 
-1. Download **[FinanceCore-v1.1.0.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.1.0/FinanceCore-v1.1.0.mcaddon)**
-2. Open it in Minecraft
+1. Download **[FinanceCore-v1.1.1.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.1.1/FinanceCore-v1.1.1.mcaddon)**
+2. Open in Minecraft
 3. Enable both packs + **Beta APIs**
+
+## Upcoming
+
+- US tender
+- Deeper CarrierCore hooks (online payments / plan purchases)
 
 ## Studio
 
 [Blocklogic Studio](https://github.com/blocklogic-studios)
-
-## FinanceCore upcoming features
-FinanceCore is still in development, so we have big plans for this addon. Here is a few.
-- US tender
-- Adding support for our other addon (CarrierCore) to allow online payments and purchasing plans.     
-And so much more!

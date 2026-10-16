@@ -146,16 +146,20 @@ export class FinanceManager {
 
   tick() {
     this._tick++;
-    // Interest + credit APR ~ every 10 min
+    // Interest ~ every 10 min, scaled so ~1 real day ≈ 1 day of APR
+    // 12000 ticks ≈ 10 min → 144 intervals/day → rate = daily/144
     if (this._tick % 12000 === 0) {
       for (const [, acc] of this.accounts) {
         const meta = ACCOUNT_TYPES[acc.type];
         if (meta?.interest > 0 && acc.balance > 0 && acc.type !== "credit") {
-          acc.balance = round2(acc.balance * (1 + meta.interest));
+          // meta.interest was tuned as a small per-interval bump; scale similarly
+          const perInterval = meta.interest / 144;
+          acc.balance = round2(acc.balance * (1 + perInterval));
         }
         if (acc.type === "credit" && acc.balance > 0) {
           const daily = (acc.apr || 0.1999) / 365;
-          acc.balance = round2(acc.balance * (1 + daily));
+          const perInterval = daily / 144;
+          acc.balance = round2(acc.balance * (1 + perInterval));
         }
       }
       this.save();
@@ -164,8 +168,13 @@ export class FinanceManager {
     if (this._tick % STATEMENT_INTERVAL === 0) {
       for (const [, acc] of this.accounts) {
         if (acc.type !== "credit" || acc.status !== "open") continue;
-        const owed = acc.balance || 0;
-        const minPay = round2(Math.max(10, owed * 0.03));
+        const owed = round2(acc.balance || 0);
+        // Never require more than what's owed; if under $10, min = full balance
+        let minPay = 0;
+        if (owed > 0) {
+          minPay = owed < 10 ? owed : round2(Math.max(10, owed * 0.03));
+          if (minPay > owed) minPay = owed;
+        }
         acc.statementBalance = owed;
         acc.minPayment = minPay;
         acc.statementAt = Date.now();
@@ -262,6 +271,7 @@ export class FinanceManager {
   deposit(accountId, amount) {
     const acc = this.accounts.get(accountId);
     if (!acc || acc.status !== "open") return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     if (acc.type === "credit") {
@@ -280,6 +290,7 @@ export class FinanceManager {
   withdraw(accountId, amount) {
     const acc = this.accounts.get(accountId);
     if (!acc || acc.status !== "open") return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     if (acc.type === "credit") {
@@ -346,11 +357,15 @@ export class FinanceManager {
     }
     let linkAccountId = accountId;
     if (cardType === "credit" && acc.type !== "credit") {
+      // Business source account → business credit limits; else personal
+      const isBiz =
+        !!acc.businessName ||
+        (typeof acc.type === "string" && acc.type.startsWith("business"));
       const opened = this.openAccount(
         playerName,
         acc.institutionId,
         "credit",
-        cardType === "business" ? acc.businessName || `${playerName} Business` : null
+        isBiz ? acc.businessName || `${playerName} Business` : null
       );
       if (!opened.ok) return opened;
       linkAccountId = opened.account.id;
@@ -438,7 +453,12 @@ export class FinanceManager {
     return [...this.cards.values()].filter((c) => c.owner === playerName);
   }
 
-  verifyPin(cardId, pin) {
+  isCardOwnedBy(cardId, playerName) {
+    const card = this.cards.get(cardId);
+    return !!(card && card.owner === playerName);
+  }
+
+    verifyPin(cardId, pin) {
     const card = this.cards.get(cardId);
     if (!card || card.status !== "active") return false;
     // expiry check soft
@@ -605,6 +625,7 @@ export class FinanceManager {
   sendETransfer(fromAccountId, toPhone, amount, message, senderName, securityQuestion = "", securityAnswer = "") {
     const from = this.accounts.get(fromAccountId);
     if (!from || from.owner !== senderName) return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     const fee = this.settings.etransferFee || 0;
@@ -642,13 +663,23 @@ export class FinanceManager {
       return { ok: false, error: "Not addressed to you" };
     }
     if (!t.toPlayer && t.status === "pending_unresolved") {
-      // allow claim only with correct security answer if one was set
+      // Must own a phone alias matching destination
+      const dest = String(t.toPhone || "").replace(/\D/g, "");
+      let phoneMatch = false;
+      for (const [phone, owner] of this.phoneAliases) {
+        if (owner !== playerName) continue;
+        if (phone === dest || phone.endsWith(dest) || dest.endsWith(phone)) {
+          phoneMatch = true;
+          break;
+        }
+      }
+      if (!phoneMatch) {
+        return { ok: false, error: "Not addressed to your phone" };
+      }
       if (t.securityAnswer) {
         if (String(securityAnswer).toLowerCase().trim() !== t.securityAnswer) {
           return { ok: false, error: "Wrong security answer" };
         }
-      } else {
-        return { ok: false, error: "Unassigned transfer — sender must use a known phone" };
       }
     }
     if (t.securityAnswer && t.toPlayer) {
@@ -679,17 +710,31 @@ export class FinanceManager {
   }
 
   getPendingTransfersFor(playerName) {
-    return this.transfers.filter(
-      (t) =>
-        (t.status === "pending" || t.status === "pending_unresolved") &&
-        (t.toPlayer === playerName || (t.status === "pending_unresolved" && t.securityAnswer))
-    );
+    // Resolve this player's registered phones
+    const myPhones = [];
+    for (const [phone, owner] of this.phoneAliases) {
+      if (owner === playerName) myPhones.push(phone);
+    }
+    return this.transfers.filter((t) => {
+      if (t.status !== "pending" && t.status !== "pending_unresolved") return false;
+      // Explicitly addressed to this player
+      if (t.toPlayer === playerName) return true;
+      // Unresolved: only if their registered phone matches the destination
+      if (t.status === "pending_unresolved" && t.toPhone) {
+        const dest = String(t.toPhone).replace(/\D/g, "");
+        return myPhones.some(
+          (p) => p === dest || p.endsWith(dest) || dest.endsWith(p)
+        );
+      }
+      return false;
+    });
   }
 
   // ---------- Direct deposit ----------
   directDeposit(toAccountId, amount, sourceLabel = "Direct Deposit", memo = "") {
     const to = this.accounts.get(toAccountId);
     if (!to || to.status !== "open") return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     const r = this.deposit(toAccountId, amount);
@@ -710,6 +755,7 @@ export class FinanceManager {
   scheduleDirectDeposit(ownerName, toAccountId, amount, intervalHours, source = "Payroll") {
     const to = this.accounts.get(toAccountId);
     if (!to || to.owner !== ownerName) return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     const hours = Math.max(0.25, Number(intervalHours) || 24);
@@ -751,6 +797,7 @@ export class FinanceManager {
     if (!card) return { ok: false, error: "Card not found" };
     if (card.status !== "active") return { ok: false, error: `Card ${card.status}` };
     if (!this.verifyPin(cardId, pin)) return { ok: false, error: "Invalid PIN" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     let tax = 0;
@@ -769,6 +816,7 @@ export class FinanceManager {
   issueCheque(fromAccountId, ownerName, payTo, amount, memo = "") {
     const from = this.accounts.get(fromAccountId);
     if (!from || from.owner !== ownerName) return { ok: false, error: "Account not found" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
     // Hold funds
@@ -838,5 +886,15 @@ export class FinanceManager {
 }
 
 function round2(n) {
-  return Math.round(Number(n) * 100) / 100;
+  const x = Number(n);
+  if (!Number.isFinite(x)) return NaN;
+  return Math.round(x * 100) / 100;
+}
+
+/** Reject non-finite / non-positive where required */
+function validAmount(n, { allowZero = false } = {}) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return false;
+  if (allowZero) return x >= 0;
+  return x > 0;
 }

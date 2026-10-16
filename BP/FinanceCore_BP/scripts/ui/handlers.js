@@ -1,11 +1,30 @@
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { system, world } from "@minecraft/server";
+import { system, world, ItemStack } from "@minecraft/server";
 
 function nextForm(fn) {
   system.run(() => {
     try { fn(); } catch (e) { console.warn("[FinanceCore] form:", e); }
   });
 }
+
+/** Parse CAD amount; returns null if invalid */
+function parseAmount(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null;
+  const n = Number(String(raw).replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
+function isAdmin(player) {
+  try {
+    if (typeof player.isOp === "function" && player.isOp()) return true;
+  } catch (e) {}
+  try {
+    if (player.hasTag && player.hasTag("financecore_admin")) return true;
+  } catch (e) {}
+  return false;
+}
+
 
 export function setupUIHandlers(finance) {
   world.afterEvents.itemUse.subscribe((event) => {
@@ -106,9 +125,16 @@ function showCardMenu(player, finance, item) {
 
 function showChequeItem(player, finance, item) {
   const lore = item.getLore?.() || [];
-  const idLine = lore.find((l) => String(l).includes("chq_"));
-  const id = idLine ? String(idLine).match(/chq_\d+/)?.[0] : null;
-  if (!id) { player.sendMessage("§7Invalid cheque"); return; }
+  let id = null;
+  for (const line of lore) {
+    const m = String(line).match(/chq_\d+/);
+    if (m) { id = m[0]; break; }
+  }
+  if (!id && item.nameTag) {
+    const m = String(item.nameTag).match(/chq_\d+/);
+    if (m) id = m[0];
+  }
+  if (!id) { player.sendMessage("§7Invalid cheque — no id in lore"); return; }
   new ActionFormData().title("Cheque").body(lore.join("\n") || id).button("Deposit").button("Close")
     .show(player).then((res) => {
       if (res.canceled || res.selection !== 0) return;
@@ -137,6 +163,7 @@ function showATMCardSession(player, finance) {
       const cardId = String(res.formValues[0]).trim();
       const card = finance.getCard(cardId);
       if (!card) { player.sendMessage("§cCard not found"); return; }
+      if (card.owner !== player.name) { player.sendMessage("§cThis card is not yours"); return; }
       if (card.status !== "active") { player.sendMessage(`§cCard is ${card.status}`); return; }
       if (!finance.verifyPin(cardId, res.formValues[1])) { player.sendMessage("§cInvalid PIN"); return; }
       nextForm(() => showATMOps(player, finance, card));
@@ -154,7 +181,9 @@ function showATMOps(player, finance, card) {
       if (res.selection === 0) nextForm(() => {
         new ModalFormData().title("Withdraw").textField("Amount CAD", "40").show(player).then((r) => {
           if (r.canceled) return;
-          const out = finance.withdrawCash(card.accountId, parseFloat(r.formValues[0]), player);
+          const amount = parseAmount(r.formValues[0]);
+          if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+          const out = finance.withdrawCash(card.accountId, amount, player);
           player.sendMessage(out.ok ? `§aDispensed` : `§c${out.error}`);
         });
       });
@@ -163,7 +192,9 @@ function showATMOps(player, finance, card) {
         new ModalFormData().title("Deposit cash").textField(`Amount (hold ${held.toFixed(2)})`, String(held || 20))
           .show(player).then((r) => {
             if (r.canceled) return;
-            const out = finance.depositCash(card.accountId, player, parseFloat(r.formValues[0]));
+            const amount = parseAmount(r.formValues[0]);
+            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+            const out = finance.depositCash(card.accountId, player, amount);
             player.sendMessage(out.ok ? `§aDeposited` : `§c${out.error}`);
           });
       });
@@ -220,7 +251,9 @@ function showInternalTransfer(player, finance) {
         nextForm(() => {
           new ModalFormData().title("Amount").textField("CAD", "50").show(player).then((res3) => {
             if (res3.canceled) return;
-            const r = finance.transferInternal(from.id, to.id, parseFloat(res3.formValues[0]));
+            const amount = parseAmount(res3.formValues[0]);
+            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+            const r = finance.transferInternal(from.id, to.id, amount);
             player.sendMessage(r.ok ? "§aOK" : `§c${r.error}`);
           });
         });
@@ -239,7 +272,9 @@ function showETransfer(player, finance, presetFromId) {
       .textField("Security answer", "")
       .show(player).then((res) => {
         if (res.canceled) return;
-        const r = finance.sendETransfer(fromAcc.id, res.formValues[0], parseFloat(res.formValues[1]),
+        const amount = parseAmount(res.formValues[1]);
+        if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+        const r = finance.sendETransfer(fromAcc.id, res.formValues[0], amount,
           res.formValues[2], player.name, res.formValues[3], res.formValues[4]);
         if (!r.ok) player.sendMessage(`§c${r.error}`);
         else player.sendMessage(r.recipientPlayer ? `§aSent to §f${r.recipientPlayer}` : "§ePending — answer required to claim");
@@ -291,8 +326,14 @@ function showTeller(player, finance) {
       if (res.selection === 5) nextForm(() => showAccountList(player, finance));
       if (res.selection === 6) nextForm(() => showIssueCheque(player, finance));
       if (res.selection === 7) nextForm(() => showDirectDepositMenu(player, finance));
-      if (res.selection === 8) nextForm(() => showBlockCostAdmin(player, finance));
-      if (res.selection === 9) nextForm(() => showTaxSettings(player, finance));
+      if (res.selection === 8) {
+        if (!isAdmin(player)) { player.sendMessage("§cOps only (or tag financecore_admin)"); return; }
+        nextForm(() => showBlockCostAdmin(player, finance));
+      }
+      if (res.selection === 9) {
+        if (!isAdmin(player)) { player.sendMessage("§cOps only (or tag financecore_admin)"); return; }
+        nextForm(() => showTaxSettings(player, finance));
+      }
     });
 }
 
@@ -324,13 +365,36 @@ function showIssueCheque(player, finance) {
     new ModalFormData().title("Cheque").textField("Pay to", "Name").textField("Amount", "100").textField("Memo", "")
       .show(player).then((res) => {
         if (res.canceled) return;
-        const r = finance.issueCheque(acc.id, player.name, res.formValues[0], parseFloat(res.formValues[1]), res.formValues[2]);
+        const amount = parseAmount(res.formValues[1]);
+        if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+        const r = finance.issueCheque(acc.id, player.name, res.formValues[0], amount, res.formValues[2]);
         if (!r.ok) { player.sendMessage(`§c${r.error}`); return; }
-        player.runCommandAsync(`give @s financecore:cheque 1`);
-        player.sendMessage(`§aCheque §f${r.cheque.id} §afor ${finance.formatMoney(r.cheque.amount)}`);
+        const chq = r.cheque;
+        try {
+          const stack = new ItemStack("financecore:cheque", 1);
+          stack.nameTag = `Cheque ${finance.formatMoney(chq.amount)}`;
+          stack.setLore([
+            `§7Pay to: §f${chq.payTo || "—"}`,
+            `§7Amount: §a${finance.formatMoney(chq.amount)}`,
+            `§8${chq.id}`,
+            chq.memo ? `§7${chq.memo}` : "§8—"
+          ]);
+          const inv = player.getComponent("inventory")?.container;
+          if (inv) {
+            const left = inv.addItem(stack);
+            if (left) player.dimension.spawnItem(left, player.location);
+          } else {
+            player.runCommandAsync(`give @s financecore:cheque 1`);
+          }
+        } catch (e) {
+          player.runCommandAsync(`give @s financecore:cheque 1`);
+          console.warn("[FinanceCore] cheque item", e);
+        }
+        player.sendMessage(`§aCheque §f${chq.id} §afor ${finance.formatMoney(chq.amount)}`);
       });
   });
 }
+
 
 function showDirectDepositMenu(player, finance) {
   new ActionFormData().title("Direct Deposit")
@@ -341,7 +405,9 @@ function showDirectDepositMenu(player, finance) {
         new ModalFormData().title("DD").textField("Amount", "500").textField("Source", "Payroll")
           .show(player).then((r) => {
             if (r.canceled) return;
-            const out = finance.directDeposit(acc.id, parseFloat(r.formValues[0]), r.formValues[1] || "Payroll");
+            const amount = parseAmount(r.formValues[0]);
+            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+            const out = finance.directDeposit(acc.id, amount, r.formValues[1] || "Payroll");
             player.sendMessage(out.ok ? "§aDeposited" : `§c${out.error}`);
           });
       }));
@@ -349,7 +415,11 @@ function showDirectDepositMenu(player, finance) {
         new ModalFormData().title("Recurring").textField("Amount", "500").textField("Hours", "24").textField("Source", "Payroll")
           .show(player).then((r) => {
             if (r.canceled) return;
-            const out = finance.scheduleDirectDeposit(player.name, acc.id, parseFloat(r.formValues[0]), parseFloat(r.formValues[1]), r.formValues[2] || "Payroll");
+            const amount = parseAmount(r.formValues[0]);
+            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+            const hours = Number(r.formValues[1]);
+            if (!Number.isFinite(hours) || hours <= 0) { player.sendMessage("§cInvalid interval"); return; }
+            const out = finance.scheduleDirectDeposit(player.name, acc.id, amount, hours, r.formValues[2] || "Payroll");
             player.sendMessage(out.ok ? `§aScheduled ${out.dd.id}` : `§c${out.error}`);
           });
       }));
@@ -367,7 +437,8 @@ function showBlockCostAdmin(player, finance) {
   new ModalFormData().title("Block cost").textField("CAD (0=off)", String(finance.settings.costPerBlock || 0))
     .show(player).then((res) => {
       if (res.canceled) return;
-      finance.settings.costPerBlock = Math.max(0, parseFloat(res.formValues[0]) || 0);
+      const v = Number(res.formValues[0]);
+      finance.settings.costPerBlock = Number.isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : 0;
       finance.save();
       player.sendMessage("§aSaved");
     });
@@ -461,7 +532,15 @@ function chargeCardFlow(player, finance) {
       new ModalFormData().title("Charge").textField("Card id", "card_4001").textField("PIN", "1234").textField("Amount", "12.50")
         .show(player).then((res2) => {
           if (res2.canceled) return;
-          const r = finance.posCharge(m.id, res2.formValues[0], res2.formValues[1], parseFloat(res2.formValues[2]), true);
+          const cardId = String(res2.formValues[0]).trim();
+          const card = finance.getCard(cardId);
+          if (!card) { player.sendMessage("§cCard not found"); return; }
+          // Customer must be online (cardholder present)
+          const holderOnline = world.getAllPlayers().some((p) => p.name === card.owner);
+          if (!holderOnline) { player.sendMessage("§cCardholder must be online"); return; }
+          const amount = parseAmount(res2.formValues[2]);
+          if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+          const r = finance.posCharge(m.id, cardId, res2.formValues[1], amount, true);
           player.sendMessage(r.ok ? `§a${finance.formatMoney(r.total)} (tax ${finance.formatMoney(r.tax)})` : `§c${r.error}`);
         });
     });
