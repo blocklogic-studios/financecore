@@ -1,0 +1,32 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "FinanceCore Behavior Pack",
+    "description": "Canadian banking — multi-bank, credit unions, CAD tender, cards, embosser, e-Transfer, direct deposit.",
+    "uuid": "1f88c77a-5f56-4362-b042-b47d8d7bef3c",
+    "version": [1, 0, 1],
+    "min_engine_version": [1, 26, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "1418ce3c-ed21-4cb8-8467-b40fd4cde758",
+      "version": [1, 0, 1]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "6da735be-c02d-46fa-ad94-9ca6ecdb4082",
+      "version": [1, 0, 1],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "f7c4d645-ba91-4280-b9b6-49453f148780",
+      "version": [1, 0, 1]
+    },
+    { "module_name": "@minecraft/server", "version": "2.6.0" },
+    { "module_name": "@minecraft/server-ui", "version": "2.0.0" }
+  ]
+}
