@@ -55,13 +55,20 @@ export function setupUIHandlers(finance) {
   });
 
   try {
-    world.beforeEvents.playerPlaceBlock.subscribe((event) => {
-      const player = event.player;
-      if (!player || !finance.settings.costPerBlock) return;
-      const r = finance.tryChargeBlockPlace(player.name);
-      if (!r.ok) { event.cancel = true; player.sendMessage(`§c${r.error}`); }
-    });
-  } catch (e) {}
+    if (world.beforeEvents && world.beforeEvents.playerPlaceBlock) {
+      world.beforeEvents.playerPlaceBlock.subscribe((event) => {
+        const player = event.player;
+        if (!player || !finance.settings.costPerBlock) return;
+        const r = finance.tryChargeBlockPlace(player.name);
+        if (!r.ok) { event.cancel = true; player.sendMessage(`§c${r.error}`); }
+      });
+      console.log("[FinanceCore] Block-cost place hook active");
+    } else {
+      console.warn("[FinanceCore] playerPlaceBlock unavailable — block cost disabled on this build");
+    }
+  } catch (e) {
+    console.warn("[FinanceCore] Block-cost hook failed", e);
+  }
 }
 
 function showBankBook(player, finance) {
@@ -157,15 +164,23 @@ function showATM(player, finance) {
 }
 
 function showATMCardSession(player, finance) {
-  new ModalFormData().title("Insert card").textField("Card id (id:card_…)", "card_4001").textField("PIN", "****")
+  const heldId = finance.getHeldCardId(player);
+  const defaultId = heldId || "card_4001";
+  const bodyHint = heldId ? `§aHeld card detected: ${heldId}` : "§7Hold a card or type id from lore";
+  new ModalFormData()
+    .title("Insert card")
+    .textField(`Card id (${heldId ? "held OK" : "or hold card"})`, defaultId)
+    .textField("PIN", "****")
     .show(player).then((res) => {
       if (res.canceled) return;
-      const cardId = String(res.formValues[0]).trim();
+      let cardId = String(res.formValues[0] || "").trim();
+      if (!cardId && heldId) cardId = heldId;
+      if (!cardId) cardId = heldId;
       const card = finance.getCard(cardId);
-      if (!card) { player.sendMessage("§cCard not found"); return; }
+      if (!card) { player.sendMessage("§cCard not found — hold your card or check lore id:card_…"); return; }
       if (card.owner !== player.name) { player.sendMessage("§cThis card is not yours"); return; }
-      if (card.status !== "active") { player.sendMessage(`§cCard is ${card.status}`); return; }
-      if (!finance.verifyPin(cardId, res.formValues[1])) { player.sendMessage("§cInvalid PIN"); return; }
+      const pinCheck = finance.verifyPin(cardId, res.formValues[1]);
+      if (!pinCheck.ok) { player.sendMessage(`§c${pinCheck.error}`); return; }
       nextForm(() => showATMOps(player, finance, card));
     });
 }
@@ -398,36 +413,42 @@ function showIssueCheque(player, finance) {
 
 function showDirectDepositMenu(player, finance) {
   new ActionFormData().title("Direct Deposit")
-    .button("One-time").button("Schedule recurring").button("My schedules").button("Close")
+    .body("§7Payroll must pull from a source account you own")
+    .button("One-time (from → to)").button("Schedule recurring").button("My schedules").button("Close")
     .show(player).then((res) => {
       if (res.canceled || res.selection === 3) return;
-      if (res.selection === 0) nextForm(() => pickAccountForm(player, finance, "To", (acc) => {
-        new ModalFormData().title("DD").textField("Amount", "500").textField("Source", "Payroll")
-          .show(player).then((r) => {
-            if (r.canceled) return;
-            const amount = parseAmount(r.formValues[0]);
-            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-            const out = finance.directDeposit(acc.id, amount, r.formValues[1] || "Payroll");
-            player.sendMessage(out.ok ? "§aDeposited" : `§c${out.error}`);
-          });
+      if (res.selection === 0) nextForm(() => pickAccountForm(player, finance, "Source (pay from)", (fromAcc) => {
+        nextForm(() => pickAccountForm(player, finance, "Destination", (toAcc) => {
+          if (fromAcc.id === toAcc.id) { player.sendMessage("§cPick different accounts"); return; }
+          new ModalFormData().title("DD").textField("Amount", "500").textField("Label", "Payroll")
+            .show(player).then((r) => {
+              if (r.canceled) return;
+              const amount = parseAmount(r.formValues[0]);
+              if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+              const out = finance.directDeposit(toAcc.id, amount, r.formValues[1] || "Payroll", "", fromAcc.id);
+              player.sendMessage(out.ok ? "§aDirect deposit done" : `§c${out.error}`);
+            });
+        }));
       }));
-      if (res.selection === 1) nextForm(() => pickAccountForm(player, finance, "To", (acc) => {
-        new ModalFormData().title("Recurring").textField("Amount", "500").textField("Hours", "24").textField("Source", "Payroll")
-          .show(player).then((r) => {
-            if (r.canceled) return;
-            const amount = parseAmount(r.formValues[0]);
-            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-            const hours = Number(r.formValues[1]);
-            if (!Number.isFinite(hours) || hours <= 0) { player.sendMessage("§cInvalid interval"); return; }
-            const out = finance.scheduleDirectDeposit(player.name, acc.id, amount, hours, r.formValues[2] || "Payroll");
-            player.sendMessage(out.ok ? `§aScheduled ${out.dd.id}` : `§c${out.error}`);
-          });
+      if (res.selection === 1) nextForm(() => pickAccountForm(player, finance, "Source (pay from)", (fromAcc) => {
+        nextForm(() => pickAccountForm(player, finance, "Destination", (toAcc) => {
+          new ModalFormData().title("Recurring DD").textField("Amount", "500").textField("Hours", "24").textField("Label", "Payroll")
+            .show(player).then((r) => {
+              if (r.canceled) return;
+              const amount = parseAmount(r.formValues[0]);
+              if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+              const hours = Number(r.formValues[1]);
+              if (!Number.isFinite(hours) || hours <= 0) { player.sendMessage("§cInvalid interval"); return; }
+              const out = finance.scheduleDirectDeposit(player.name, toAcc.id, amount, hours, r.formValues[2] || "Payroll", fromAcc.id);
+              player.sendMessage(out.ok ? `§aScheduled ${out.dd.id}` : `§c${out.error}`);
+            });
+        }));
       }));
       if (res.selection === 2) {
         const list = finance.listDirectDeposits(player.name);
         const f = new ActionFormData().title("Schedules");
         if (!list.length) f.body("§7None").button("OK");
-        else for (const d of list) f.button(`${d.id}\n${finance.formatMoney(d.amount)}`);
+        else for (const d of list) f.button(`${d.id}\n${finance.formatMoney(d.amount)} from ${d.fromAccountId || "?"}`);
         f.show(player);
       }
     });
@@ -529,10 +550,11 @@ function chargeCardFlow(player, finance) {
     if (res.canceled) return;
     const m = merchants[res.selection];
     nextForm(() => {
-      new ModalFormData().title("Charge").textField("Card id", "card_4001").textField("PIN", "1234").textField("Amount", "12.50")
+      const held = finance.getHeldCardId(player);
+      new ModalFormData().title("Charge").textField("Customer card id", held || "card_4001").textField("PIN", "1234").textField("Amount", "12.50")
         .show(player).then((res2) => {
           if (res2.canceled) return;
-          const cardId = String(res2.formValues[0]).trim();
+          let cardId = String(res2.formValues[0] || "").trim() || held;
           const card = finance.getCard(cardId);
           if (!card) { player.sendMessage("§cCard not found"); return; }
           // Customer must be online (cardholder present)
@@ -550,25 +572,57 @@ function chargeCardFlow(player, finance) {
 function showDrawer(player, finance, block) {
   const key = `${block.dimension.id}:${block.x},${block.y},${block.z}`;
   let d = finance.drawers.get(key) || finance.registerDrawer(block.x, block.y, block.z, block.dimension.id, "rbc", 500);
-  new ActionFormData().title("Cash Drawer").body(`§a${finance.formatMoney(d.cash)}`)
-    .button("+100").button("-50").button("Close")
+  new ActionFormData().title("Cash Drawer").body(`§7Float: §a${finance.formatMoney(d.cash)}`)
+    .button("Deposit tender from inventory")
+    .button("Withdraw $50 tender")
+    .button("Adjust +100 (admin count)")
+    .button("Adjust -50 (admin count)")
+    .button("Close")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 2) return;
-      d.cash = Math.round(Math.max(0, d.cash + (res.selection === 0 ? 100 : -50)) * 100) / 100;
-      finance.save();
-      player.sendMessage(`§a${finance.formatMoney(d.cash)}`);
+      if (res.canceled || res.selection === 4) return;
+      if (res.selection === 0) {
+        const r = finance.drawerDepositTender(key, player);
+        player.sendMessage(r.ok ? `§aDeposited ${finance.formatMoney(r.deposited)}` : `§c${r.error}`);
+      } else if (res.selection === 1) {
+        const r = finance.drawerWithdrawTender(key, player, 50);
+        player.sendMessage(r.ok ? "§aWithdrew $50.00 CAD tender" : `§c${r.error}`);
+      } else if (res.selection === 2) {
+        d.cash = Math.round((d.cash + 100) * 100) / 100;
+        finance.save();
+        player.sendMessage(`§aFloat ${finance.formatMoney(d.cash)}`);
+      } else if (res.selection === 3) {
+        d.cash = Math.round(Math.max(0, d.cash - 50) * 100) / 100;
+        finance.save();
+        player.sendMessage(`§aFloat ${finance.formatMoney(d.cash)}`);
+      }
     });
 }
 
 function showVault(player, finance, block) {
   const key = `${block.dimension.id}:${block.x},${block.y},${block.z}`;
   let v = finance.vaults.get(key) || finance.registerVault(block.x, block.y, block.z, block.dimension.id, "rbc", 0);
-  new ActionFormData().title("Vault").body(`§a${finance.formatMoney(v.cash)}`)
-    .button("+500").button("-500").button("Close")
+  new ActionFormData().title("Vault").body(`§7Cash: §a${finance.formatMoney(v.cash)}`)
+    .button("Deposit tender from inventory")
+    .button("Withdraw $100 tender")
+    .button("Adjust +500")
+    .button("Adjust -500")
+    .button("Close")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 2) return;
-      v.cash = Math.round(Math.max(0, v.cash + (res.selection === 0 ? 500 : -500)) * 100) / 100;
-      finance.save();
-      player.sendMessage(`§a${finance.formatMoney(v.cash)}`);
+      if (res.canceled || res.selection === 4) return;
+      if (res.selection === 0) {
+        const r = finance.vaultDepositTender(key, player);
+        player.sendMessage(r.ok ? `§aDeposited ${finance.formatMoney(r.deposited)}` : `§c${r.error}`);
+      } else if (res.selection === 1) {
+        const r = finance.vaultWithdrawTender(key, player, 100);
+        player.sendMessage(r.ok ? "§aWithdrew $100.00 CAD tender" : `§c${r.error}`);
+      } else if (res.selection === 2) {
+        v.cash = Math.round((v.cash + 500) * 100) / 100;
+        finance.save();
+        player.sendMessage(`§a${finance.formatMoney(v.cash)}`);
+      } else if (res.selection === 3) {
+        v.cash = Math.round(Math.max(0, v.cash - 500) * 100) / 100;
+        finance.save();
+        player.sendMessage(`§a${finance.formatMoney(v.cash)}`);
+      }
     });
 }

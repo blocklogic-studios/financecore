@@ -1,4 +1,4 @@
-import { world, system, ItemStack } from "@minecraft/server";
+import { world, system, ItemStack, EquipmentSlot } from "@minecraft/server";
 
 const DEFAULT_INSTITUTIONS = [
   { id: "rbc", name: "RBC Royal Bank", type: "bank", routing: "0003" },
@@ -194,7 +194,7 @@ export class FinanceManager {
       for (const [, dd] of this.directDeposits) {
         if (!dd.active) continue;
         if (now >= (dd.nextAt || 0)) {
-          const r = this.directDeposit(dd.toAccountId, dd.amount, dd.source || "Payroll", dd.memo || "");
+          const r = this.directDeposit(dd.toAccountId, dd.amount, dd.source || "Payroll", dd.memo || "", dd.fromAccountId || null);
           if (r.ok) {
             dd.nextAt = now + (dd.intervalMs || 24 * 60 * 60 * 1000);
             dd.lastAt = now;
@@ -212,9 +212,13 @@ export class FinanceManager {
           t.createdAt &&
           now - t.createdAt > ETRANSFER_EXPIRY_MS
         ) {
-          // refund sender
-          if (t.fromAccountId && t.amount) {
+          const fromAcc = t.fromAccountId ? this.accounts.get(t.fromAccountId) : null;
+          if (fromAcc && fromAcc.status === "open" && t.amount) {
             this.deposit(t.fromAccountId, round2(t.amount + (t.fee || 0)));
+            t.refunded = true;
+          } else {
+            t.refunded = false;
+            t.refundError = "Source account closed or missing";
           }
           t.status = "expired";
         }
@@ -279,7 +283,13 @@ export class FinanceManager {
       acc.balance = round2(Math.max(0, acc.balance - amount));
       const applied = round2(before - acc.balance);
       acc.paidTowardStatement = round2((acc.paidTowardStatement || 0) + applied);
-      if (acc.overdue && (acc.paidTowardStatement || 0) >= (acc.lastMinDue || 0)) acc.overdue = false;
+      if (acc.balance <= 0) {
+        acc.balance = 0;
+        acc.overdue = false;
+        acc.paidTowardStatement = acc.lastMinDue || 0;
+      } else if (acc.overdue && (acc.paidTowardStatement || 0) >= (acc.lastMinDue || 0)) {
+        acc.overdue = false;
+      }
     } else {
       acc.balance = round2(acc.balance + amount);
     }
@@ -453,22 +463,127 @@ export class FinanceManager {
     return [...this.cards.values()].filter((c) => c.owner === playerName);
   }
 
+
+  /** Read card id from held or offhand item lore */
+  getHeldCardId(player) {
+    try {
+      const equip = player.getComponent("equippable");
+      if (equip) {
+        const slots = [];
+        const slotList = [];
+        try { slotList.push(EquipmentSlot.Mainhand, EquipmentSlot.Offhand); } catch (e) {
+          slotList.push("Mainhand", "Offhand");
+        }
+        for (const slot of slotList) {
+          try {
+            const it = equip.getEquipment(slot);
+            if (!it) continue;
+            if (
+              it.typeId === "financecore:debit_card" ||
+              it.typeId === "financecore:credit_card" ||
+              it.typeId === "financecore:business_card"
+            ) {
+              const id = this.parseCardIdFromItem(it);
+              if (id) return id;
+            }
+          } catch (e) {}
+        }
+      }
+      // Fallback: scan hotbar for a card (first found)
+      try {
+        const inv = player.getComponent("inventory")?.container;
+        if (inv) {
+          for (let i = 0; i < 9; i++) {
+            const it = inv.getItem(i);
+            if (!it) continue;
+            if (
+              it.typeId === "financecore:debit_card" ||
+              it.typeId === "financecore:credit_card" ||
+              it.typeId === "financecore:business_card"
+            ) {
+              const id = this.parseCardIdFromItem(it);
+              if (id) return id;
+            }
+          }
+        }
+      } catch (e) {}
+    } catch (e) {}
+    return null;
+  }
+
+  getHeldChequeId(player) {
+    try {
+      const equip = player.getComponent("equippable");
+      if (equip) {
+        for (const slot of ["Mainhand", "Offhand"]) {
+          try {
+            const it = equip.getEquipment(slot);
+            if (!it || it.typeId !== "financecore:cheque") continue;
+            const lore = it.getLore?.() || [];
+            for (const line of lore) {
+              const m = String(line).match(/chq_\d+/);
+              if (m) return m[0];
+            }
+            if (it.nameTag) {
+              const m = String(it.nameTag).match(/chq_\d+/);
+              if (m) return m[0];
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   isCardOwnedBy(cardId, playerName) {
     const card = this.cards.get(cardId);
     return !!(card && card.owner === playerName);
   }
 
-    verifyPin(cardId, pin) {
+    isCardExpired(card) {
+    if (!card || !card.expiry) return false;
+    try {
+      const [mm, yy] = String(card.expiry).split("/");
+      const expMonth = parseInt(mm, 10);
+      const expYear = 2000 + parseInt(yy, 10);
+      if (!expMonth || !expYear) return false;
+      const now = new Date();
+      // expires end of month
+      if (now.getFullYear() > expYear) return true;
+      if (now.getFullYear() === expYear && now.getMonth() + 1 > expMonth) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  verifyPin(cardId, pin) {
     const card = this.cards.get(cardId);
-    if (!card || card.status !== "active") return false;
-    // expiry check soft
-    return card.pin === String(pin).replace(/\D/g, "").padStart(4, "0").slice(0, 4);
+    if (!card) return { ok: false, error: "Card not found" };
+    if (card.status === "frozen") return { ok: false, error: "Card frozen" };
+    if (card.status === "lost") return { ok: false, error: "Card reported lost" };
+    if (card.status === "locked") return { ok: false, error: "Card locked — too many wrong PINs" };
+    if (card.status !== "active") return { ok: false, error: "Card not active" };
+    if (this.isCardExpired(card)) return { ok: false, error: "Card expired" };
+    const ok = card.pin === String(pin).replace(/\D/g, "").padStart(4, "0").slice(0, 4);
+    if (!ok) {
+      card.pinFails = (card.pinFails || 0) + 1;
+      if (card.pinFails >= 3) {
+        card.status = "locked";
+        this.save();
+        return { ok: false, error: "Card locked after 3 wrong PINs" };
+      }
+      this.save();
+      return { ok: false, error: `Invalid PIN (${card.pinFails}/3)` };
+    }
+    card.pinFails = 0;
+    this.save();
+    return { ok: true };
   }
 
   changePin(cardId, ownerName, oldPin, newPin) {
     const card = this.cards.get(cardId);
     if (!card || card.owner !== ownerName) return { ok: false, error: "Card not found" };
-    if (!this.verifyPin(cardId, oldPin)) return { ok: false, error: "Wrong PIN" };
+    const pinCheck = this.verifyPin(cardId, oldPin);
+    if (!pinCheck.ok) return { ok: false, error: pinCheck.error || "Wrong PIN" };
     const n = String(newPin).replace(/\D/g, "").padStart(4, "0").slice(0, 4);
     if (n.length !== 4) return { ok: false, error: "PIN must be 4 digits" };
     card.pin = n;
@@ -479,8 +594,9 @@ export class FinanceManager {
   setCardStatus(cardId, ownerName, status) {
     const card = this.cards.get(cardId);
     if (!card || card.owner !== ownerName) return { ok: false, error: "Card not found" };
-    if (!["active", "frozen", "lost"].includes(status)) return { ok: false, error: "Invalid status" };
+    if (!["active", "frozen", "lost", "locked"].includes(status)) return { ok: false, error: "Invalid status" };
     card.status = status;
+    if (status === "active") card.pinFails = 0;
     this.save();
     return { ok: true };
   }
@@ -731,20 +847,32 @@ export class FinanceManager {
   }
 
   // ---------- Direct deposit ----------
-  directDeposit(toAccountId, amount, sourceLabel = "Direct Deposit", memo = "") {
+  directDeposit(toAccountId, amount, sourceLabel = "Direct Deposit", memo = "", fromAccountId = null) {
     const to = this.accounts.get(toAccountId);
     if (!to || to.status !== "open") return { ok: false, error: "Account not found" };
     if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
+    // If source account provided, pull funds from it (real payroll)
+    if (fromAccountId) {
+      const from = this.accounts.get(fromAccountId);
+      if (!from || from.status !== "open") return { ok: false, error: "Source account not found" };
+      if (from.id === to.id) return { ok: false, error: "Source and destination must differ" };
+      const w = this.withdraw(fromAccountId, amount);
+      if (!w.ok) return { ok: false, error: w.error || "Source has insufficient funds" };
+    }
     const r = this.deposit(toAccountId, amount);
-    if (!r.ok) return r;
+    if (!r.ok) {
+      if (fromAccountId) this.deposit(fromAccountId, amount); // rollback
+      return r;
+    }
     if (!to.ledger) to.ledger = [];
     to.ledger.push({
       type: "direct_deposit",
       amount,
       source: sourceLabel,
       memo: (memo || "").slice(0, 60),
+      fromAccountId: fromAccountId || null,
       at: Date.now()
     });
     if (to.ledger.length > 40) to.ledger = to.ledger.slice(-40);
@@ -752,18 +880,25 @@ export class FinanceManager {
     return { ok: true, balance: to.balance };
   }
 
-  scheduleDirectDeposit(ownerName, toAccountId, amount, intervalHours, source = "Payroll") {
+  scheduleDirectDeposit(ownerName, toAccountId, amount, intervalHours, source = "Payroll", fromAccountId = null) {
     const to = this.accounts.get(toAccountId);
     if (!to || to.owner !== ownerName) return { ok: false, error: "Account not found" };
     if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
+    if (!fromAccountId) return { ok: false, error: "Source account required for payroll" };
+    const from = this.accounts.get(fromAccountId);
+    if (!from || from.status !== "open") return { ok: false, error: "Source account not found" };
+    if (from.id === to.id) return { ok: false, error: "Source and destination must differ" };
+    // Owner must control source OR be admin-scheduled; require same owner for non-op path
+    if (from.owner !== ownerName) return { ok: false, error: "You must own the source account" };
     const hours = Math.max(0.25, Number(intervalHours) || 24);
     const id = `dd_${this.nextIds.dd++}`;
     const dd = {
       id,
       owner: ownerName,
       toAccountId,
+      fromAccountId,
       amount,
       source,
       intervalMs: hours * 60 * 60 * 1000,
@@ -795,8 +930,9 @@ export class FinanceManager {
     if (!m) return { ok: false, error: "Merchant not found" };
     const card = this.cards.get(cardId);
     if (!card) return { ok: false, error: "Card not found" };
-    if (card.status !== "active") return { ok: false, error: `Card ${card.status}` };
-    if (!this.verifyPin(cardId, pin)) return { ok: false, error: "Invalid PIN" };
+    if (this.isCardExpired(card)) return { ok: false, error: "Card expired" };
+    const pinCheck = this.verifyPin(cardId, pin);
+    if (!pinCheck.ok) return { ok: false, error: pinCheck.error || "Invalid PIN" };
     if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
@@ -809,6 +945,21 @@ export class FinanceManager {
     const w = this.withdraw(card.accountId, total);
     if (!w.ok) return w;
     this.deposit(m.accountId, total);
+    const payer = this.accounts.get(card.accountId);
+    if (payer) {
+      if (!payer.ledger) payer.ledger = [];
+      payer.ledger.push({
+        type: "pos",
+        amount: total,
+        subtotal: amount,
+        tax,
+        merchantId: m.id,
+        merchant: m.name,
+        at: Date.now()
+      });
+      if (payer.ledger.length > 40) payer.ledger = payer.ledger.slice(-40);
+    }
+    this.save();
     return { ok: true, subtotal: amount, tax, total };
   }
 
@@ -840,15 +991,19 @@ export class FinanceManager {
 
   depositCheque(chequeId, toAccountId, playerName) {
     const chq = this.cheques.get(chequeId);
-    if (!chq || chq.status !== "issued") return { ok: false, error: "Cheque not found" };
+    if (!chq) return { ok: false, error: "Cheque not found" };
+    if (chq.status === "cleared") return { ok: false, error: "Cheque already cleared" };
+    if (chq.status === "cancelled") return { ok: false, error: "Cheque cancelled" };
+    if (chq.status !== "issued") return { ok: false, error: `Cheque status: ${chq.status}` };
     const to = this.accounts.get(toAccountId);
     if (!to || to.owner !== playerName) return { ok: false, error: "Account not found" };
-    this.deposit(toAccountId, chq.amount);
+    const r = this.deposit(toAccountId, chq.amount);
+    if (!r.ok) return r;
     chq.status = "cleared";
     chq.clearedAt = Date.now();
     chq.depositedTo = toAccountId;
     this.save();
-    return { ok: true };
+    return { ok: true, amount: chq.amount };
   }
 
   // ---------- Vault / drawer ----------
@@ -878,6 +1033,62 @@ export class FinanceManager {
       }
     }
     return { ok: false, error: "Insufficient funds for block cost" };
+  }
+
+
+  /** Move physical tender from player into vault float */
+  vaultDepositTender(key, player, maxAmount = null) {
+    const v = this.vaults.get(key);
+    if (!v) return { ok: false, error: "Vault not registered" };
+    const available = this.countInventoryCash(player);
+    let amount = available;
+    if (maxAmount != null) amount = Math.min(amount, maxAmount);
+    amount = round2(amount);
+    if (amount <= 0) return { ok: false, error: "No CAD tender" };
+    const taken = this.takeTenderFromPlayer(player, amount);
+    if (taken <= 0) return { ok: false, error: "Could not take tender" };
+    v.cash = round2((v.cash || 0) + taken);
+    this.save();
+    return { ok: true, cash: v.cash, deposited: taken };
+  }
+
+  vaultWithdrawTender(key, player, amount) {
+    const v = this.vaults.get(key);
+    if (!v) return { ok: false, error: "Vault not registered" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
+    amount = round2(amount);
+    if ((v.cash || 0) < amount) return { ok: false, error: "Insufficient vault cash" };
+    v.cash = round2(v.cash - amount);
+    this.giveTenderToPlayer(player, amount);
+    this.save();
+    return { ok: true, cash: v.cash };
+  }
+
+  drawerDepositTender(key, player, maxAmount = null) {
+    const d = this.drawers.get(key);
+    if (!d) return { ok: false, error: "Drawer not registered" };
+    const available = this.countInventoryCash(player);
+    let amount = available;
+    if (maxAmount != null) amount = Math.min(amount, maxAmount);
+    amount = round2(amount);
+    if (amount <= 0) return { ok: false, error: "No CAD tender" };
+    const taken = this.takeTenderFromPlayer(player, amount);
+    if (taken <= 0) return { ok: false, error: "Could not take tender" };
+    d.cash = round2((d.cash || 0) + taken);
+    this.save();
+    return { ok: true, cash: d.cash, deposited: taken };
+  }
+
+  drawerWithdrawTender(key, player, amount) {
+    const d = this.drawers.get(key);
+    if (!d) return { ok: false, error: "Drawer not registered" };
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
+    amount = round2(amount);
+    if ((d.cash || 0) < amount) return { ok: false, error: "Insufficient drawer float" };
+    d.cash = round2(d.cash - amount);
+    this.giveTenderToPlayer(player, amount);
+    this.save();
+    return { ok: true, cash: d.cash };
   }
 
   formatMoney(n) {
