@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:pos_terminal",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#1A1A2E",
+      "minecraft:geometry": "geometry.financecore.pos_terminal",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_pos_terminal",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -4,
+          0,
+          -3
+        ],
+        "size": [
+          8,
+          10,
+          6
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -4,
+          0,
+          -3
+        ],
+        "size": [
+          8,
+          10,
+          6
+        ]
+      },
+      "financecore:pos_terminal": {}
+    }
+  }
+}

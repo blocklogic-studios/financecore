@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:card_embosser",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#4A4A4A",
+      "minecraft:geometry": "geometry.financecore.card_embosser",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_card_embosser",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          13,
+          12
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          13,
+          12
+        ]
+      },
+      "financecore:card_embosser": {}
+    }
+  }
+}

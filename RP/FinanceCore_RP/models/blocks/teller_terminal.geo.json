@@ -1,0 +1,27 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:geometry": [{
+    "description": {
+      "identifier": "geometry.financecore.teller_terminal",
+      "texture_width": 16, "texture_height": 16,
+      "visible_bounds_width": 1.5, "visible_bounds_height": 1.4, "visible_bounds_offset": [0, 0.5, 0]
+    },
+    "bones": [
+      {"name": "base", "pivot": [0,0,0], "cubes": [
+        {"origin": [-7,0,-6], "size": [14,2,12], "uv": {"north": {"uv": [0,14], "uv_size": [14,2]}, "up": {"uv": [0,0], "uv_size": [14,12]}, "down": {"uv": [0,0], "uv_size": [14,12]}}}
+      ]},
+      {"name": "monitor", "pivot": [0,0,0], "cubes": [
+        {"origin": [-5,2,-2], "size": [10,10,1.5], "uv": {"north": {"uv": [3,2], "uv_size": [10,10]}, "south": {"uv": [3,2], "uv_size": [10,10]}, "east": {"uv": [0,2], "uv_size": [2,10]}, "west": {"uv": [0,2], "uv_size": [2,10]}}}
+      ]},
+      {"name": "screen_face", "pivot": [0,0,0], "cubes": [
+        {"origin": [-4.5,3,-2.3], "size": [9,8,0.4], "uv": {"north": {"uv": [3,3], "uv_size": [9,8]}}}
+      ]},
+      {"name": "stand", "pivot": [0,0,0], "cubes": [
+        {"origin": [-1.5,2,-1], "size": [3,2,3], "uv": {"north": {"uv": [6,12], "uv_size": [3,2]}}}
+      ]},
+      {"name": "keyboard", "pivot": [0,0,0], "cubes": [
+        {"origin": [-5,2,2], "size": [10,0.8,4], "uv": {"up": {"uv": [3,10], "uv_size": [10,4]}, "north": {"uv": [3,14], "uv_size": [10,1]}}}
+      ]}
+    ]
+  }]
+}

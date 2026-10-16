@@ -2,16 +2,28 @@
   "format_version": 2,
   "header": {
     "name": "FinanceCore Resource Pack",
-    "description": "Models and textures for FinanceCore banking equipment and CAD tender.",
+    "description": "Models and textures for FinanceCore banking equipment.",
     "uuid": "f7c4d645-ba91-4280-b9b6-49453f148780",
-    "version": [1, 0, 1],
-    "min_engine_version": [1, 26, 0]
+    "version": [
+      1,
+      0,
+      1
+    ],
+    "min_engine_version": [
+      1,
+      26,
+      0
+    ]
   },
   "modules": [
     {
       "type": "resources",
       "uuid": "9bcfba29-4365-4ae8-8167-4dc2a11bac4d",
-      "version": [1, 0, 1]
+      "version": [
+        1,
+        0,
+        1
+      ]
     }
   ]
 }

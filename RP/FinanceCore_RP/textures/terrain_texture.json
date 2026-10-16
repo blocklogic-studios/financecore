@@ -1,0 +1,14 @@
+{
+  "resource_pack_name": "FinanceCore",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "financecore_atm": { "textures": "textures/blocks/atm" },
+    "financecore_teller_terminal": { "textures": "textures/blocks/teller_terminal" },
+    "financecore_card_embosser": { "textures": "textures/blocks/card_embosser" },
+    "financecore_pos_terminal": { "textures": "textures/blocks/pos_terminal" },
+    "financecore_cash_drawer": { "textures": "textures/blocks/cash_drawer" },
+    "financecore_vault": { "textures": "textures/blocks/vault" }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "resource_pack_name": "FinanceCore",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "financecore_debit_card": {
+      "textures": "textures/items/debit_card"
+    },
+    "financecore_credit_card": {
+      "textures": "textures/items/credit_card"
+    },
+    "financecore_blank_card": {
+      "textures": "textures/items/blank_card"
+    },
+    "financecore_bank_book": {
+      "textures": "textures/items/bank_book"
+    },
+    "financecore_business_card": {
+      "textures": "textures/items/business_card"
+    },
+    "financecore_bill_5": {
+      "textures": "textures/items/bill_5"
+    },
+    "financecore_bill_10": {
+      "textures": "textures/items/bill_10"
+    },
+    "financecore_bill_20": {
+      "textures": "textures/items/bill_20"
+    },
+    "financecore_bill_50": {
+      "textures": "textures/items/bill_50"
+    },
+    "financecore_bill_100": {
+      "textures": "textures/items/bill_100"
+    },
+    "financecore_coin_nickel": {
+      "textures": "textures/items/coin_nickel"
+    },
+    "financecore_coin_dime": {
+      "textures": "textures/items/coin_dime"
+    },
+    "financecore_coin_quarter": {
+      "textures": "textures/items/coin_quarter"
+    },
+    "financecore_coin_loonie": {
+      "textures": "textures/items/coin_loonie"
+    },
+    "financecore_coin_toonie": {
+      "textures": "textures/items/coin_toonie"
+    }
+  }
+}

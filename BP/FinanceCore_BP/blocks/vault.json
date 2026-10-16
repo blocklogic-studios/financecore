@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:vault",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#2F2F2F",
+      "minecraft:geometry": "geometry.financecore.vault",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_vault",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -8,
+          0,
+          -6
+        ],
+        "size": [
+          16,
+          24,
+          12
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -8,
+          0,
+          -6
+        ],
+        "size": [
+          16,
+          24,
+          12
+        ]
+      },
+      "financecore:vault": {}
+    }
+  }
+}

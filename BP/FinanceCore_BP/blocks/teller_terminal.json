@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:teller_terminal",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#2C3E50",
+      "minecraft:geometry": "geometry.financecore.teller_terminal",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_teller_terminal",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          12,
+          12
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          12,
+          12
+        ]
+      },
+      "financecore:teller_terminal": {}
+    }
+  }
+}

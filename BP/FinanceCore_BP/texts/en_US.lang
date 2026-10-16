@@ -1,0 +1,45 @@
+pack.name=FinanceCore Behavior Pack
+pack.description=Canadian multi-bank finance — accounts, cards, embosser, e-Transfer, POS
+
+tile.financecore:atm.name=ATM
+tile.financecore:teller_terminal.name=Teller Terminal
+tile.financecore:card_embosser.name=Card Embosser
+tile.financecore:pos_terminal.name=POS Terminal
+tile.financecore:cash_drawer.name=Cash Drawer
+tile.financecore:vault.name=Bank Vault
+
+item.financecore:debit_card=Debit Card
+item.financecore:debit_card.name=Debit Card
+item.financecore:credit_card=Credit Card
+item.financecore:credit_card.name=Credit Card
+item.financecore:blank_card=Blank Card
+item.financecore:blank_card.name=Blank Card
+item.financecore:bank_book=Bank Book
+item.financecore:bank_book.name=Bank Book
+item.financecore:business_card=Business Card
+item.financecore:business_card.name=Business Card
+
+financecore:itemGroup.name.banking=FinanceCore Banking
+financecore:itemGroup.name.cards=FinanceCore Cards
+
+item.financecore:bill_5=$5 Bill
+item.financecore:bill_5.name=$5 Bill
+item.financecore:bill_10=$10 Bill
+item.financecore:bill_10.name=$10 Bill
+item.financecore:bill_20=$20 Bill
+item.financecore:bill_20.name=$20 Bill
+item.financecore:bill_50=$50 Bill
+item.financecore:bill_50.name=$50 Bill
+item.financecore:bill_100=$100 Bill
+item.financecore:bill_100.name=$100 Bill
+item.financecore:coin_nickel=Nickel
+item.financecore:coin_nickel.name=Nickel
+item.financecore:coin_dime=Dime
+item.financecore:coin_dime.name=Dime
+item.financecore:coin_quarter=Quarter
+item.financecore:coin_quarter.name=Quarter
+item.financecore:coin_loonie=Loonie
+item.financecore:coin_loonie.name=Loonie
+item.financecore:coin_toonie=Toonie
+item.financecore:coin_toonie.name=Toonie
+financecore:itemGroup.name.tender=FinanceCore CAD Tender

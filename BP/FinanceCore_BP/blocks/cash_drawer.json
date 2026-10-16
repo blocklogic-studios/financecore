@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:cash_drawer",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#8B6914",
+      "minecraft:geometry": "geometry.financecore.cash_drawer",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_cash_drawer",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          6,
+          12
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -7,
+          0,
+          -6
+        ],
+        "size": [
+          14,
+          6,
+          12
+        ]
+      },
+      "financecore:cash_drawer": {}
+    }
+  }
+}

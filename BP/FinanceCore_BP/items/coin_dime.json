@@ -1,0 +1,17 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:item": {
+    "description": {
+      "identifier": "financecore:coin_dime",
+      "menu_category": {
+        "category": "items",
+        "group": "financecore:itemGroup.name.tender",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:max_stack_size": 64,
+      "minecraft:icon": "financecore_coin_dime"
+    }
+  }
+}

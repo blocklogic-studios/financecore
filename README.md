@@ -19,9 +19,10 @@ Real institutions, physical **CAD tender**, card embossing, ATMs, tellers, POS, 
 
 ## Install
 
-1. Download the `.mcaddon` from [Releases](../../releases) (or build from source)
-2. Enable Behavior + Resource packs
-3. Turn on **Beta APIs**
+1. Download **[FinanceCore-v1.0.1.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.0.1/FinanceCore-v1.0.1.mcaddon)** from [Releases](https://github.com/blocklogic-studios/financecore/releases/tag/v1.0.1)
+2. Open it (imports BP + RP)
+3. Enable both packs on your world
+4. Turn on **Beta APIs**
 
 ## Studio
 

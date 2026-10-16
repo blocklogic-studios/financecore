@@ -1,0 +1,24 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:geometry": [{
+    "description": {
+      "identifier": "geometry.financecore.cash_drawer",
+      "texture_width": 16, "texture_height": 16,
+      "visible_bounds_width": 1.4, "visible_bounds_height": 0.8, "visible_bounds_offset": [0, 0.2, 0]
+    },
+    "bones": [
+      {"name": "shell", "pivot": [0,0,0], "cubes": [
+        {"origin": [-7,0,-6], "size": [14,6,12], "uv": {"north": {"uv": [0,5], "uv_size": [14,6]}, "south": {"uv": [0,5], "uv_size": [14,6]}, "east": {"uv": [0,5], "uv_size": [12,6]}, "west": {"uv": [0,5], "uv_size": [12,6]}, "up": {"uv": [0,0], "uv_size": [14,12]}, "down": {"uv": [0,0], "uv_size": [14,12]}}}
+      ]},
+      {"name": "drawer_face", "pivot": [0,0,0], "cubes": [
+        {"origin": [-6,1,-6.3], "size": [12,4,0.4], "uv": {"north": {"uv": [2,8], "uv_size": [12,4]}}}
+      ]},
+      {"name": "handle", "pivot": [0,0,0], "cubes": [
+        {"origin": [-1.5,2.5,-6.6], "size": [3,1,0.4], "uv": {"north": {"uv": [6,10], "uv_size": [3,1]}}}
+      ]},
+      {"name": "lock", "pivot": [0,0,0], "cubes": [
+        {"origin": [4,2.2,-6.5], "size": [1.5,1.5,0.3], "uv": {"north": {"uv": [8,10], "uv_size": [2,2]}}}
+      ]}
+    ]
+  }]
+}

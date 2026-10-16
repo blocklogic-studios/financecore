@@ -1,0 +1,67 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:crafting_items_catalog": {
+    "categories": [
+      {
+        "category_name": "construction",
+        "groups": [
+          {
+            "group_identifier": {
+              "icon": "financecore:atm",
+              "name": "financecore:itemGroup.name.banking"
+            },
+            "items": [
+              "financecore:atm",
+              "financecore:teller_terminal",
+              "financecore:card_embosser",
+              "financecore:pos_terminal",
+              "financecore:cash_drawer",
+              "financecore:vault"
+            ]
+          }
+        ]
+      },
+      {
+        "category_name": "equipment",
+        "groups": [
+          {
+            "group_identifier": {
+              "icon": "financecore:debit_card",
+              "name": "financecore:itemGroup.name.cards"
+            },
+            "items": [
+              "financecore:blank_card",
+              "financecore:debit_card",
+              "financecore:credit_card",
+              "financecore:business_card",
+              "financecore:bank_book"
+            ]
+          }
+        ]
+      },
+      {
+        "category_name": "items",
+        "groups": [
+          {
+            "group_identifier": {
+              "icon": "financecore:bill_20",
+              "name": "financecore:itemGroup.name.tender"
+            },
+            "items": [
+              "financecore:bill_5",
+              "financecore:bill_10",
+              "financecore:bill_20",
+              "financecore:bill_50",
+              "financecore:bill_100",
+              "financecore:coin_nickel",
+              "financecore:coin_dime",
+              "financecore:coin_quarter",
+              "financecore:coin_loonie",
+              "financecore:coin_toonie"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
