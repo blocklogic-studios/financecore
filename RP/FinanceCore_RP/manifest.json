@@ -2,12 +2,12 @@
   "format_version": 2,
   "header": {
     "name": "FinanceCore Resource Pack",
-    "description": "Models and textures for FinanceCore banking equipment.",
+    "description": "Models and textures for FinanceCore banking equipment. v1.1",
     "uuid": "f7c4d645-ba91-4280-b9b6-49453f148780",
     "version": [
       1,
-      0,
-      1
+      1,
+      0
     ],
     "min_engine_version": [
       1,
@@ -21,8 +21,8 @@
       "uuid": "9bcfba29-4365-4ae8-8167-4dc2a11bac4d",
       "version": [
         1,
-        0,
-        1
+        1,
+        0
       ]
     }
   ]

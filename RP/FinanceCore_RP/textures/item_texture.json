@@ -46,6 +46,9 @@
     },
     "financecore_coin_toonie": {
       "textures": "textures/items/coin_toonie"
+    },
+    "financecore_cheque": {
+      "textures": "textures/items/cheque"
     }
   }
 }

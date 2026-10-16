@@ -57,7 +57,8 @@
               "financecore:coin_dime",
               "financecore:coin_quarter",
               "financecore:coin_loonie",
-              "financecore:coin_toonie"
+              "financecore:coin_toonie",
+              "financecore:cheque"
             ]
           }
         ]

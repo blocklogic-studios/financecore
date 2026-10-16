@@ -43,3 +43,5 @@ item.financecore:coin_loonie.name=Loonie
 item.financecore:coin_toonie=Toonie
 item.financecore:coin_toonie.name=Toonie
 financecore:itemGroup.name.tender=FinanceCore CAD Tender
+item.financecore:cheque=Cheque
+item.financecore:cheque.name=Cheque
