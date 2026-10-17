@@ -1,21 +1,20 @@
 # FinanceCore
 
-Canadian multi-bank finance for Minecraft Bedrock **1.26+** — now with **USD tender** and **CarrierCore** bridges.
+Multi-bank finance for Minecraft Bedrock **1.26+**.
 
-## v1.2.0
+## v1.3.0 — Branded ATMs
 
-- **US tender**: $1–$100 bills, penny through dollar coin
-- World currency switch: **CAD / USD** (teller, ops)
-- **Online pay** to phone (instant if recipient known, else pending)
-- **Mobile plan purchase** (Basic Talk, Data, Plus, Unlimited, Business Fleet)
-- CarrierCore bridge via `carriercore:finance_bridge` + `financecore:carrier_bridge`
-- Works solo; upgrades when CarrierCore is loaded
+- Per-bank ATM models: RBC, TD, BMO, Scotiabank, CIBC, National, Desjardins, Vancity, Tangerine, generic
+- Each ATM: logo bar, screen, PIN pad, card slot, dispenser
+- **Configure ATM** (ops / `financecore_admin`): bank, color, networks (Interac, Visa Debit, Mastercard, Plus, Cirrus, THE EXCHANGE)
+- Selecting a bank swaps the world block to that bank’s styled ATM
+
+Stylized in-game art only — not official bank trademarks.
 
 ## Install
 
-1. Download **[FinanceCore-v1.2.0.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.2.0/FinanceCore-v1.2.0.mcaddon)**
-2. Enable both packs + **Beta APIs**
-3. Optional: load [CarrierCore](https://github.com/blocklogic-studios/carriercore) for live phone resolution + plan bridge
+1. [FinanceCore-v1.3.0.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.3.0/FinanceCore-v1.3.0.mcaddon)
+2. Both packs + **Beta APIs**
 
 ## Studio
 

@@ -71,3 +71,14 @@ item.financecore:usd_coin_half.name=Half Dollar
 item.financecore:usd_coin_dollar=Dollar Coin
 item.financecore:usd_coin_dollar.name=Dollar Coin
 financecore:itemGroup.name.tender_usd=FinanceCore USD Tender
+
+tile.financecore:atm_generic.name=Network ATM ATM
+tile.financecore:atm_rbc.name=RBC ATM
+tile.financecore:atm_td.name=TD ATM
+tile.financecore:atm_bmo.name=BMO ATM
+tile.financecore:atm_scotiabank.name=Scotiabank ATM
+tile.financecore:atm_cibc.name=CIBC ATM
+tile.financecore:atm_national.name=National Bank ATM
+tile.financecore:atm_desjardins.name=Desjardins ATM
+tile.financecore:atm_vancity.name=Vancity ATM
+tile.financecore:atm_tangerine.name=Tangerine ATM

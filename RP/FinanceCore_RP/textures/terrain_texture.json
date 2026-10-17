@@ -4,11 +4,53 @@
   "padding": 8,
   "num_mip_levels": 4,
   "texture_data": {
-    "financecore_atm": { "textures": "textures/blocks/atm" },
-    "financecore_teller_terminal": { "textures": "textures/blocks/teller_terminal" },
-    "financecore_card_embosser": { "textures": "textures/blocks/card_embosser" },
-    "financecore_pos_terminal": { "textures": "textures/blocks/pos_terminal" },
-    "financecore_cash_drawer": { "textures": "textures/blocks/cash_drawer" },
-    "financecore_vault": { "textures": "textures/blocks/vault" }
+    "financecore_atm": {
+      "textures": "textures/blocks/atm"
+    },
+    "financecore_teller_terminal": {
+      "textures": "textures/blocks/teller_terminal"
+    },
+    "financecore_card_embosser": {
+      "textures": "textures/blocks/card_embosser"
+    },
+    "financecore_pos_terminal": {
+      "textures": "textures/blocks/pos_terminal"
+    },
+    "financecore_cash_drawer": {
+      "textures": "textures/blocks/cash_drawer"
+    },
+    "financecore_vault": {
+      "textures": "textures/blocks/vault"
+    },
+    "financecore_atm_generic": {
+      "textures": "textures/blocks/atm_generic"
+    },
+    "financecore_atm_rbc": {
+      "textures": "textures/blocks/atm_rbc"
+    },
+    "financecore_atm_td": {
+      "textures": "textures/blocks/atm_td"
+    },
+    "financecore_atm_bmo": {
+      "textures": "textures/blocks/atm_bmo"
+    },
+    "financecore_atm_scotiabank": {
+      "textures": "textures/blocks/atm_scotiabank"
+    },
+    "financecore_atm_cibc": {
+      "textures": "textures/blocks/atm_cibc"
+    },
+    "financecore_atm_national": {
+      "textures": "textures/blocks/atm_national"
+    },
+    "financecore_atm_desjardins": {
+      "textures": "textures/blocks/atm_desjardins"
+    },
+    "financecore_atm_vancity": {
+      "textures": "textures/blocks/atm_vancity"
+    },
+    "financecore_atm_tangerine": {
+      "textures": "textures/blocks/atm_tangerine"
+    }
   }
 }

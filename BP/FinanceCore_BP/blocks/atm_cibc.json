@@ -1,0 +1,51 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "financecore:atm_cibc",
+      "menu_category": {
+        "category": "construction",
+        "group": "financecore:itemGroup.name.banking",
+        "is_hidden_in_commands": false
+      }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2.0
+      },
+      "minecraft:map_color": "#78141e",
+      "minecraft:geometry": "geometry.financecore.atm_cibc",
+      "minecraft:material_instances": {
+        "*": {
+          "texture": "financecore_atm_cibc",
+          "render_method": "opaque"
+        }
+      },
+      "minecraft:collision_box": {
+        "origin": [
+          -7,
+          0,
+          -5
+        ],
+        "size": [
+          14,
+          26,
+          10
+        ]
+      },
+      "minecraft:selection_box": {
+        "origin": [
+          -7,
+          0,
+          -5
+        ],
+        "size": [
+          14,
+          26,
+          10
+        ]
+      },
+      "financecore:atm_cibc": {}
+    }
+  }
+}

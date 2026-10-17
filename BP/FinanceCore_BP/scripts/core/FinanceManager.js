@@ -64,6 +64,7 @@ export class FinanceManager {
     this.directDeposits = new Map(); // id -> recurring DD
     this.cheques = new Map();
     this.phoneAliases = new Map(); // phone digits -> playerName (local)
+    this.atms = new Map(); // dim:x,y,z -> { institutionId, color, networks, label }
     this.nextIds = {
       account: 1000,
       card: 4000,
@@ -104,6 +105,7 @@ export class FinanceManager {
         if (data.cheques) this.cheques = new Map(data.cheques);
         if (data.phoneAliases) this.phoneAliases = new Map(data.phoneAliases);
         if (data.plans) this.plans = new Map(data.plans);
+        if (data.atms) this.atms = new Map(data.atms);
       }
     } catch (e) {
       console.warn("[FinanceCore] load:", e);
@@ -141,7 +143,8 @@ export class FinanceManager {
         directDeposits: [...this.directDeposits.entries()],
         cheques: [...this.cheques.entries()],
         phoneAliases: [...this.phoneAliases.entries()],
-        plans: [...this.plans.entries()]
+        plans: [...this.plans.entries()],
+        atms: [...this.atms.entries()]
       };
       world.setDynamicProperty("financecore:state", JSON.stringify(data));
     } catch (e) {
@@ -1249,6 +1252,87 @@ export class FinanceManager {
       if (bridge.events.length > 50) bridge.events = bridge.events.slice(-50);
       world.setDynamicProperty("financecore:carrier_bridge", JSON.stringify(bridge));
     } catch (e) {}
+  }
+
+
+  static ATM_NETWORKS = ["Interac", "Visa Debit", "Mastercard", "Plus", "Cirrus", "THE EXCHANGE"];
+
+  static ATM_COLORS = [
+    { id: "bank_default", label: "Bank default" },
+    { id: "blue", label: "Blue" },
+    { id: "green", label: "Green" },
+    { id: "red", label: "Red" },
+    { id: "black", label: "Black" },
+    { id: "orange", label: "Orange" },
+    { id: "white", label: "White / silver" }
+  ];
+
+  static BANK_ATM_BLOCKS = {
+    generic: "financecore:atm_generic",
+    rbc: "financecore:atm_rbc",
+    td: "financecore:atm_td",
+    bmo: "financecore:atm_bmo",
+    scotiabank: "financecore:atm_scotiabank",
+    cibc: "financecore:atm_cibc",
+    national: "financecore:atm_national",
+    desjardins: "financecore:atm_desjardins",
+    vancity: "financecore:atm_vancity",
+    tangerine: "financecore:atm_tangerine",
+    servus: "financecore:atm_generic",
+    coastcapital: "financecore:atm_generic",
+    eqbank: "financecore:atm_generic"
+  };
+
+  atmKey(dim, x, y, z) {
+    return `${dim}:${x},${y},${z}`;
+  }
+
+  getAtmConfig(dim, x, y, z) {
+    const key = this.atmKey(dim, x, y, z);
+    let cfg = this.atms.get(key);
+    if (!cfg) {
+      cfg = {
+        key,
+        institutionId: "generic",
+        color: "bank_default",
+        networks: ["Interac", "Visa Debit"],
+        label: "Network ATM"
+      };
+      this.atms.set(key, cfg);
+    }
+    return cfg;
+  }
+
+  setAtmConfig(dim, x, y, z, patch) {
+    const cfg = this.getAtmConfig(dim, x, y, z);
+    Object.assign(cfg, patch || {});
+    if (cfg.institutionId) {
+      const inst = this.institutions.get(cfg.institutionId);
+      cfg.label = inst ? `${inst.name} ATM` : cfg.label || "ATM";
+    }
+    this.atms.set(cfg.key, cfg);
+    this.save();
+    return cfg;
+  }
+
+  /**
+   * Swap the world block to the bank-branded ATM type.
+   */
+  applyAtmBlockType(dimension, x, y, z, institutionId) {
+    const typeId = FinanceManager.BANK_ATM_BLOCKS[institutionId] || "financecore:atm_generic";
+    try {
+      const block = dimension.getBlock({ x, y, z });
+      if (!block) return { ok: false, error: "No block" };
+      block.setType(typeId);
+      return { ok: true, typeId };
+    } catch (e) {
+      try {
+        dimension.runCommand(`setblock ${x} ${y} ${z} ${typeId}`);
+        return { ok: true, typeId };
+      } catch (e2) {
+        return { ok: false, error: String(e2) };
+      }
+    }
   }
 
   formatMoney(n) {

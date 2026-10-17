@@ -44,14 +44,19 @@ export function setupUIHandlers(finance) {
     const id = block.typeId;
     const player = event.player;
     const map = {
-      "financecore:atm": () => showATM(player, finance),
       "financecore:teller_terminal": () => showTeller(player, finance),
       "financecore:card_embosser": () => showEmbosser(player, finance),
       "financecore:pos_terminal": () => showPOS(player, finance),
       "financecore:cash_drawer": () => showDrawer(player, finance, block),
       "financecore:vault": () => showVault(player, finance, block)
     };
-    if (map[id]) { event.cancel = true; nextForm(map[id]); }
+    if (id === "financecore:atm" || id.startsWith("financecore:atm_")) {
+      event.cancel = true;
+      nextForm(() => showATM(player, finance, block));
+    } else if (map[id]) {
+      event.cancel = true;
+      nextForm(map[id]);
+    }
   });
 
   try {
@@ -152,18 +157,111 @@ function showChequeItem(player, finance, item) {
     });
 }
 
-function showATM(player, finance) {
-  new ActionFormData().title("ATM").body("§7Insert card · Interac · CAD tender")
-    .button("Use card (PIN)").button("My accounts").button("Pending e-Transfers").button("Close")
+function showATM(player, finance, block) {
+  const dim = block ? block.dimension.id : "minecraft:overworld";
+  const x = block ? block.x : 0, y = block ? block.y : 0, z = block ? block.z : 0;
+  const cfg = block ? finance.getAtmConfig(dim, x, y, z) : { label: "ATM", networks: ["Interac"], institutionId: "generic", color: "bank_default" };
+  const inst = finance.getInstitution(cfg.institutionId);
+  const nets = (cfg.networks || []).join(" · ") || "Interac";
+  const title = cfg.label || (inst ? `${inst.name} ATM` : "ATM");
+  const body = `§e${title}\n§7Networks: §f${nets}\n§8Color: ${cfg.color || "default"}\n§7${finance.getCurrency()} tender · card + PIN`;
+  const form = new ActionFormData().title(title.slice(0, 28)).body(body)
+    .button("Use card (PIN)")
+    .button("My accounts")
+    .button("Pending e-Transfers");
+  if (isAdmin(player)) form.button("§6Configure ATM");
+  form.button("Close");
+  const closeIdx = isAdmin(player) ? 4 : 3;
+  form.show(player).then((res) => {
+    if (res.canceled || res.selection === closeIdx) return;
+    if (res.selection === 0) nextForm(() => showATMCardSession(player, finance, cfg));
+    if (res.selection === 1) nextForm(() => showAccountList(player, finance));
+    if (res.selection === 2) nextForm(() => showPendingTransfers(player, finance));
+    if (isAdmin(player) && res.selection === 3) nextForm(() => showATMConfig(player, finance, block));
+  });
+}
+
+function showATMConfig(player, finance, block) {
+  if (!block) { player.sendMessage("§cNo ATM block"); return; }
+  const dim = block.dimension.id;
+  const cfg = finance.getAtmConfig(dim, block.x, block.y, block.z);
+  new ActionFormData().title("Configure ATM")
+    .body(`§7Bank: §f${cfg.institutionId}\n§7Color: §f${cfg.color}\n§7Networks: §f${(cfg.networks||[]).join(", ")}`)
+    .button("Set bank / logo")
+    .button("Set color")
+    .button("Set networks")
+    .button("Apply branded model")
+    .button("Close")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 3) return;
-      if (res.selection === 0) nextForm(() => showATMCardSession(player, finance));
-      if (res.selection === 1) nextForm(() => showAccountList(player, finance));
-      if (res.selection === 2) nextForm(() => showPendingTransfers(player, finance));
+      if (res.canceled || res.selection === 4) return;
+      if (res.selection === 0) nextForm(() => showATMPickBank(player, finance, block));
+      if (res.selection === 1) nextForm(() => showATMPickColor(player, finance, block));
+      if (res.selection === 2) nextForm(() => showATMPickNetworks(player, finance, block));
+      if (res.selection === 3) {
+        const c = finance.getAtmConfig(dim, block.x, block.y, block.z);
+        const r = finance.applyAtmBlockType(block.dimension, block.x, block.y, block.z, c.institutionId);
+        player.sendMessage(r.ok ? `§aApplied §f${r.typeId}` : `§c${r.error}`);
+      }
     });
 }
 
-function showATMCardSession(player, finance) {
+function showATMPickBank(player, finance, block) {
+  const insts = [
+    { id: "generic", name: "Network / generic" },
+    ...finance.listInstitutions()
+  ];
+  const form = new ActionFormData().title("ATM bank").body("§7Stylized in-game branding (not official logos)");
+  for (const i of insts) form.button(i.name);
+  form.show(player).then((res) => {
+    if (res.canceled) return;
+    const pick = insts[res.selection];
+    if (!pick) return;
+    finance.setAtmConfig(block.dimension.id, block.x, block.y, block.z, { institutionId: pick.id });
+    const r = finance.applyAtmBlockType(block.dimension, block.x, block.y, block.z, pick.id);
+    player.sendMessage(`§aATM set to §f${pick.name}` + (r.ok ? " §7(model updated)" : " §c(model swap failed)"));
+  });
+}
+
+function showATMPickColor(player, finance, block) {
+  const colors = [
+    { id: "bank_default", label: "Bank default" },
+    { id: "blue", label: "Blue" },
+    { id: "green", label: "Green" },
+    { id: "red", label: "Red" },
+    { id: "black", label: "Black" },
+    { id: "orange", label: "Orange" },
+    { id: "white", label: "White / silver" }
+  ];
+  const form = new ActionFormData().title("ATM color");
+  for (const c of colors) form.button(c.label);
+  form.show(player).then((res) => {
+    if (res.canceled) return;
+    const c = colors[res.selection];
+    if (!c) return;
+    finance.setAtmConfig(block.dimension.id, block.x, block.y, block.z, { color: c.id });
+    player.sendMessage(`§aColor: §f${c.label}`);
+  });
+}
+
+function showATMPickNetworks(player, finance, block) {
+  const all = ["Interac", "Visa Debit", "Mastercard", "Plus", "Cirrus", "THE EXCHANGE"];
+  const cfg = finance.getAtmConfig(block.dimension.id, block.x, block.y, block.z);
+  const current = new Set(cfg.networks || []);
+  const form = new ActionFormData().title("Toggle networks")
+    .body("§7Tap to toggle · current shown with ✓");
+  for (const n of all) form.button(`${current.has(n) ? "§a✓ " : "§8○ "}${n}`);
+  form.button("Done");
+  form.show(player).then((res) => {
+    if (res.canceled || res.selection === all.length) return;
+    const n = all[res.selection];
+    if (current.has(n)) current.delete(n); else current.add(n);
+    finance.setAtmConfig(block.dimension.id, block.x, block.y, block.z, { networks: [...current] });
+    nextForm(() => showATMPickNetworks(player, finance, block));
+  });
+}
+
+
+function showATMCardSession(player, finance, cfg) {
   const heldId = finance.getHeldCardId(player);
   const defaultId = heldId || "card_4001";
   const bodyHint = heldId ? `§aHeld card detected: ${heldId}` : "§7Hold a card or type id from lore";
@@ -181,14 +279,16 @@ function showATMCardSession(player, finance) {
       if (card.owner !== player.name) { player.sendMessage("§cThis card is not yours"); return; }
       const pinCheck = finance.verifyPin(cardId, res.formValues[1]);
       if (!pinCheck.ok) { player.sendMessage(`§c${pinCheck.error}`); return; }
-      nextForm(() => showATMOps(player, finance, card));
+      nextForm(() => showATMOps(player, finance, card, cfg));
     });
 }
 
-function showATMOps(player, finance, card) {
+function showATMOps(player, finance, card, cfg) {
   const acc = finance.getAccount(card.accountId);
   const bal = acc?.type === "credit" ? `owed ${finance.formatMoney(acc.balance)}` : finance.formatMoney(acc?.balance ?? 0);
-  new ActionFormData().title(`ATM · ••${card.last4}`).body(`§7${card.institutionName}\n§a${bal}`)
+  const atmLabel = (cfg && cfg.label) || "ATM";
+  const nets = cfg && cfg.networks ? cfg.networks.join(" · ") : "Interac";
+  new ActionFormData().title(`${atmLabel}`.slice(0, 20) + ` ·•${card.last4}`).body(`§7${card.institutionName}\n§8${nets}\n§a${bal}`)
     .button("Withdraw cash").button("Deposit cash").button("Transfer").button("e-Transfer")
     .button("Direct deposit").button("Online pay (phone)")
     .button("Buy mobile plan").button("Done")

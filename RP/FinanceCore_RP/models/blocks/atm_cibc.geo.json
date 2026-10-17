@@ -1,0 +1,309 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.financecore.atm_cibc",
+        "texture_width": 16,
+        "texture_height": 16,
+        "visible_bounds_width": 1.6,
+        "visible_bounds_height": 2.2,
+        "visible_bounds_offset": [
+          0,
+          0.8,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "cabinet",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -7,
+                0,
+                -5
+              ],
+              "size": [
+                14,
+                24,
+                10
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    0,
+                    0
+                  ],
+                  "uv_size": [
+                    14,
+                    16
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    0,
+                    0
+                  ],
+                  "uv_size": [
+                    14,
+                    16
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    1,
+                    0
+                  ],
+                  "uv_size": [
+                    10,
+                    16
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    1,
+                    0
+                  ],
+                  "uv_size": [
+                    10,
+                    16
+                  ]
+                },
+                "up": {
+                  "uv": [
+                    1,
+                    0
+                  ],
+                  "uv_size": [
+                    14,
+                    10
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    1,
+                    0
+                  ],
+                  "uv_size": [
+                    14,
+                    10
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "logo_bar",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -6,
+                21,
+                -5.3
+              ],
+              "size": [
+                12,
+                2.5,
+                0.4
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    2,
+                    0
+                  ],
+                  "uv_size": [
+                    12,
+                    3
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "screen",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5,
+                13,
+                -5.5
+              ],
+              "size": [
+                10,
+                7,
+                0.6
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    3,
+                    4
+                  ],
+                  "uv_size": [
+                    10,
+                    5
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "screen_bezel",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -5.5,
+                12.5,
+                -5.35
+              ],
+              "size": [
+                11,
+                8,
+                0.35
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    2,
+                    3
+                  ],
+                  "uv_size": [
+                    12,
+                    8
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "keypad",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -3.5,
+                6,
+                -5.4
+              ],
+              "size": [
+                7,
+                5.5,
+                0.5
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    4,
+                    10
+                  ],
+                  "uv_size": [
+                    7,
+                    5
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "card_slot",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                3.5,
+                10,
+                -5.6
+              ],
+              "size": [
+                3,
+                1.5,
+                0.7
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    12,
+                    9
+                  ],
+                  "uv_size": [
+                    3,
+                    2
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "dispenser",
+          "pivot": [
+            0,
+            0,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4,
+                2.5,
+                -5.5
+              ],
+              "size": [
+                8,
+                2,
+                0.5
+              ],
+              "uv": {
+                "north": {
+                  "uv": [
+                    4,
+                    13
+                  ],
+                  "uv_size": [
+                    8,
+                    2
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
