@@ -49,6 +49,42 @@
     },
     "financecore_cheque": {
       "textures": "textures/items/cheque"
+    },
+    "financecore_usd_bill_1": {
+      "textures": "textures/items/usd_bill_1"
+    },
+    "financecore_usd_bill_5": {
+      "textures": "textures/items/usd_bill_5"
+    },
+    "financecore_usd_bill_10": {
+      "textures": "textures/items/usd_bill_10"
+    },
+    "financecore_usd_bill_20": {
+      "textures": "textures/items/usd_bill_20"
+    },
+    "financecore_usd_bill_50": {
+      "textures": "textures/items/usd_bill_50"
+    },
+    "financecore_usd_bill_100": {
+      "textures": "textures/items/usd_bill_100"
+    },
+    "financecore_usd_coin_penny": {
+      "textures": "textures/items/usd_coin_penny"
+    },
+    "financecore_usd_coin_nickel": {
+      "textures": "textures/items/usd_coin_nickel"
+    },
+    "financecore_usd_coin_dime": {
+      "textures": "textures/items/usd_coin_dime"
+    },
+    "financecore_usd_coin_quarter": {
+      "textures": "textures/items/usd_coin_quarter"
+    },
+    "financecore_usd_coin_half": {
+      "textures": "textures/items/usd_coin_half"
+    },
+    "financecore_usd_coin_dollar": {
+      "textures": "textures/items/usd_coin_dollar"
     }
   }
 }

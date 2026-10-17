@@ -1,24 +1,21 @@
 # FinanceCore
 
-Canadian multi-bank finance for Minecraft Bedrock **1.26+**.
+Canadian multi-bank finance for Minecraft Bedrock **1.26+** — now with **USD tender** and **CarrierCore** bridges.
 
-## v1.1.2
+## v1.2.0
 
-- ATM / POS prefer **held card** (hotbar scan)
-- PIN lockout after 3 fails; **expiry** enforced
-- Reactivate clears lock + pin fails
-- Direct deposit / payroll requires **source account** with funds
-- Credit overdue clears when balance hits $0
-- e-Transfer expiry refund only if source account still open
-- Cheque already-cleared messages
-- POS ledger line (subtotal + tax)
-- Vault / drawer accept **physical CAD tender**
-- Block-cost hook logs if unavailable on build
+- **US tender**: $1–$100 bills, penny through dollar coin
+- World currency switch: **CAD / USD** (teller, ops)
+- **Online pay** to phone (instant if recipient known, else pending)
+- **Mobile plan purchase** (Basic Talk, Data, Plus, Unlimited, Business Fleet)
+- CarrierCore bridge via `carriercore:finance_bridge` + `financecore:carrier_bridge`
+- Works solo; upgrades when CarrierCore is loaded
 
 ## Install
 
-1. Download **[FinanceCore-v1.1.2.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.1.2/FinanceCore-v1.1.2.mcaddon)**
+1. Download **[FinanceCore-v1.2.0.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.2.0/FinanceCore-v1.2.0.mcaddon)**
 2. Enable both packs + **Beta APIs**
+3. Optional: load [CarrierCore](https://github.com/blocklogic-studios/carriercore) for live phone resolution + plan bridge
 
 ## Studio
 

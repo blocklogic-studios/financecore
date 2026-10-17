@@ -74,12 +74,15 @@ export class FinanceManager {
     };
     this.settings = {
       costPerBlock: 0,
-      currency: "CAD",
+      currency: "CAD", // CAD | USD
       etransferFee: 0,
       gstRate: 0.05,
       hstRate: 0.13,
-      useHst: false // if true POS uses HST instead of GST
+      useHst: false,
+      fxUsdToCad: 1.35 // display helper when mixing
     };
+    this.plans = new Map(); // phone -> plan purchase records
+
     this._tick = 0;
   }
 
@@ -100,6 +103,7 @@ export class FinanceManager {
         if (data.directDeposits) this.directDeposits = new Map(data.directDeposits);
         if (data.cheques) this.cheques = new Map(data.cheques);
         if (data.phoneAliases) this.phoneAliases = new Map(data.phoneAliases);
+        if (data.plans) this.plans = new Map(data.plans);
       }
     } catch (e) {
       console.warn("[FinanceCore] load:", e);
@@ -136,7 +140,8 @@ export class FinanceManager {
         drawers: [...this.drawers.entries()],
         directDeposits: [...this.directDeposits.entries()],
         cheques: [...this.cheques.entries()],
-        phoneAliases: [...this.phoneAliases.entries()]
+        phoneAliases: [...this.phoneAliases.entries()],
+        plans: [...this.plans.entries()]
       };
       world.setDynamicProperty("financecore:state", JSON.stringify(data));
     } catch (e) {
@@ -602,15 +607,49 @@ export class FinanceManager {
   }
 
   // ---------- Tender ----------
+
+  getCurrency() {
+    return (this.settings.currency || "CAD").toUpperCase() === "USD" ? "USD" : "CAD";
+  }
+
+  setCurrency(code) {
+    const c = String(code || "CAD").toUpperCase();
+    this.settings.currency = c === "USD" ? "USD" : "CAD";
+    this.save();
+    return this.settings.currency;
+  }
+
+  getDispenseOrder() {
+    return this.getCurrency() === "USD" ? DISPENSE_ORDER_USD : DISPENSE_ORDER_CAD;
+  }
+
+  getTenderMap() {
+    return this.getCurrency() === "USD" ? TENDER_USD : TENDER_CAD;
+  }
+
+  isCarrierCorePresent() {
+    try {
+      const raw = world.getDynamicProperty("carriercore:network");
+      return !!(raw && typeof raw === "string");
+    } catch (e) {
+      return false;
+    }
+  }
+
+  listCarrierPlans() {
+    return CARRIER_PLANS.slice();
+  }
+
   countInventoryCash(player) {
     let total = 0;
+    const map = this.getTenderMap();
     try {
       const inv = player.getComponent("inventory")?.container;
       if (!inv) return 0;
       for (let i = 0; i < inv.size; i++) {
         const it = inv.getItem(i);
         if (!it) continue;
-        const v = TENDER[it.typeId];
+        const v = map[it.typeId];
         if (v) total += v * it.amount;
       }
     } catch (e) {}
@@ -623,7 +662,7 @@ export class FinanceManager {
     try {
       const inv = player.getComponent("inventory")?.container;
       if (!inv) return 0;
-      for (const [typeId, val] of DISPENSE_ORDER) {
+      for (const [typeId, val] of this.getDispenseOrder()) {
         if (need < val - 0.001) continue;
         for (let i = 0; i < inv.size && need >= val - 0.001; i++) {
           const it = inv.getItem(i);
@@ -649,7 +688,7 @@ export class FinanceManager {
     amount = round2(amount);
     let left = amount;
     try {
-      for (const [typeId, val] of DISPENSE_ORDER) {
+      for (const [typeId, val] of this.getDispenseOrder()) {
         if (left < val - 0.001) continue;
         let n = Math.floor((left + 0.001) / val);
         // Prefer breaking with smaller notes if remainder would be ugly — still greedy OK for game
@@ -674,7 +713,12 @@ export class FinanceManager {
         left = round2(left - n * val);
       }
       // leftover cents as nickels if any
-      if (left >= 0.05) {
+      if (this.getCurrency() === "USD") {
+        if (left >= 0.01) {
+          const n = Math.floor(left / 0.01);
+          if (n > 0) player.runCommandAsync(`give @s financecore:usd_coin_penny ${n}`);
+        }
+      } else if (left >= 0.05) {
         const n = Math.floor(left / 0.05);
         if (n > 0) player.runCommandAsync(`give @s financecore:coin_nickel ${n}`);
         left = round2(left - n * 0.05);
@@ -1091,8 +1135,125 @@ export class FinanceManager {
     return { ok: true, cash: d.cash };
   }
 
+
+  /**
+   * Online payment to a phone number (CarrierCore-aware).
+   * Charges fromAccount, credits recipient account if resolved, else pending like e-Transfer.
+   */
+  onlinePay(fromAccountId, toPhone, amount, memo, senderName) {
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
+    amount = round2(amount);
+    const from = this.accounts.get(fromAccountId);
+    if (!from || from.owner !== senderName) return { ok: false, error: "Account not found" };
+    const w = this.withdraw(fromAccountId, amount);
+    if (!w.ok) return w;
+    const recipient = this.resolvePhoneToPlayer(toPhone);
+    if (recipient) {
+      const accounts = this.getPlayerAccounts(recipient).filter((a) => a.type !== "credit");
+      if (accounts.length) {
+        accounts.sort((a, b) => b.balance - a.balance);
+        this.deposit(accounts[0].id, amount);
+        this._pushBridgeEvent({
+          type: "online_pay",
+          from: senderName,
+          to: recipient,
+          phone: String(toPhone),
+          amount,
+          memo: (memo || "").slice(0, 60),
+          at: Date.now()
+        });
+        return { ok: true, mode: "instant", recipient, balance: w.balance };
+      }
+    }
+    // fall back to pending e-transfer style
+    const id = `et_${this.nextIds.transfer++}`;
+    this.transfers.push({
+      id,
+      fromAccountId,
+      fromOwner: senderName,
+      toPhone: String(toPhone).replace(/\D/g, ""),
+      toPlayer: recipient,
+      amount,
+      fee: 0,
+      message: (memo || "Online pay").slice(0, 80),
+      securityQuestion: "",
+      securityAnswer: "",
+      status: recipient ? "pending" : "pending_unresolved",
+      createdAt: Date.now(),
+      online: true
+    });
+    this.save();
+    return { ok: true, mode: "pending", recipient, transferId: id };
+  }
+
+  /**
+   * Purchase a mobile plan for a phone number; charges account.
+   * Writes bridge so CarrierCore (or future packs) can apply service.
+   */
+  purchasePlan(playerName, accountId, planId, phone) {
+    const plan = CARRIER_PLANS.find((p) => p.id === planId);
+    if (!plan) return { ok: false, error: "Unknown plan" };
+    const acc = this.accounts.get(accountId);
+    if (!acc || acc.owner !== playerName) return { ok: false, error: "Account not found" };
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length < 7) return { ok: false, error: "Invalid phone" };
+    const w = this.withdraw(accountId, plan.price);
+    if (!w.ok) return w;
+    const record = {
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.price,
+      dataGb: plan.dataGb,
+      talkMin: plan.talkMin,
+      phone: digits,
+      owner: playerName,
+      carrierCore: this.isCarrierCorePresent(),
+      purchasedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+    };
+    this.plans.set(digits, record);
+    this._pushBridgeEvent({
+      type: "plan_purchase",
+      ...record
+    });
+    // Also try to annotate carriercore bridge property
+    try {
+      let bridge = {};
+      const raw = world.getDynamicProperty("carriercore:finance_bridge");
+      if (raw && typeof raw === "string") bridge = JSON.parse(raw);
+      if (!bridge.plans) bridge.plans = {};
+      bridge.plans[digits] = record;
+      if (!bridge.events) bridge.events = [];
+      bridge.events.push({ type: "plan_purchase", phone: digits, planId: plan.id, at: Date.now() });
+      if (bridge.events.length > 40) bridge.events = bridge.events.slice(-40);
+      world.setDynamicProperty("carriercore:finance_bridge", JSON.stringify(bridge));
+    } catch (e) {
+      console.warn("[FinanceCore] bridge write", e);
+    }
+    this.save();
+    return { ok: true, plan: record, carrierCore: record.carrierCore };
+  }
+
+  getPlanForPhone(phone) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    return this.plans.get(digits) || null;
+  }
+
+  _pushBridgeEvent(evt) {
+    try {
+      let bridge = {};
+      const raw = world.getDynamicProperty("financecore:carrier_bridge");
+      if (raw && typeof raw === "string") bridge = JSON.parse(raw);
+      if (!bridge.events) bridge.events = [];
+      bridge.events.push(evt);
+      if (bridge.events.length > 50) bridge.events = bridge.events.slice(-50);
+      world.setDynamicProperty("financecore:carrier_bridge", JSON.stringify(bridge));
+    } catch (e) {}
+  }
+
   formatMoney(n) {
-    return `$${round2(n).toFixed(2)} CAD`;
+    const c = this.getCurrency();
+    return `$${round2(n).toFixed(2)} ${c}`;
   }
 }
 

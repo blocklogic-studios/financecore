@@ -60,6 +60,26 @@
               "financecore:coin_toonie",
               "financecore:cheque"
             ]
+          },
+          {
+            "group_identifier": {
+              "icon": "financecore:usd_bill_20",
+              "name": "financecore:itemGroup.name.tender_usd"
+            },
+            "items": [
+              "financecore:usd_bill_1",
+              "financecore:usd_bill_5",
+              "financecore:usd_bill_10",
+              "financecore:usd_bill_20",
+              "financecore:usd_bill_50",
+              "financecore:usd_bill_100",
+              "financecore:usd_coin_penny",
+              "financecore:usd_coin_nickel",
+              "financecore:usd_coin_dime",
+              "financecore:usd_coin_quarter",
+              "financecore:usd_coin_half",
+              "financecore:usd_coin_dollar"
+            ]
           }
         ]
       }

@@ -190,9 +190,10 @@ function showATMOps(player, finance, card) {
   const bal = acc?.type === "credit" ? `owed ${finance.formatMoney(acc.balance)}` : finance.formatMoney(acc?.balance ?? 0);
   new ActionFormData().title(`ATM · ••${card.last4}`).body(`§7${card.institutionName}\n§a${bal}`)
     .button("Withdraw cash").button("Deposit cash").button("Transfer").button("e-Transfer")
-    .button("Direct deposit").button("Done")
+    .button("Direct deposit").button("Online pay (phone)")
+    .button("Buy mobile plan").button("Done")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 5) return;
+      if (res.canceled || res.selection === 7) return;
       if (res.selection === 0) nextForm(() => {
         new ModalFormData().title("Withdraw").textField("Amount CAD", "40").show(player).then((r) => {
           if (r.canceled) return;
@@ -216,6 +217,8 @@ function showATMOps(player, finance, card) {
       if (res.selection === 2) nextForm(() => showInternalTransfer(player, finance));
       if (res.selection === 3) nextForm(() => showETransfer(player, finance, card.accountId));
       if (res.selection === 4) nextForm(() => showDirectDepositMenu(player, finance));
+      if (res.selection === 5) nextForm(() => showOnlinePay(player, finance, card.accountId));
+      if (res.selection === 6) nextForm(() => showBuyPlan(player, finance, card.accountId));
     });
 }
 
@@ -333,9 +336,9 @@ function showTeller(player, finance) {
     .button("Open Chequing").button("Open Savings").button("Open Business Chequing")
     .button("Open Business Savings").button("Open Credit").button("My Accounts")
     .button("Issue cheque").button("Direct deposit").button("Block cost")
-    .button("Tax GST/HST").button("Close")
+    .button("Tax GST/HST").button("Currency CAD/USD").button("Close")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 10) return;
+      if (res.canceled || res.selection === 11) return;
       const types = ["chequing", "savings", "business_chequing", "business_savings", "credit"];
       if (res.selection <= 4) nextForm(() => showPickInstitution(player, finance, types[res.selection]));
       if (res.selection === 5) nextForm(() => showAccountList(player, finance));
@@ -348,6 +351,10 @@ function showTeller(player, finance) {
       if (res.selection === 9) {
         if (!isAdmin(player)) { player.sendMessage("§cOps only (or tag financecore_admin)"); return; }
         nextForm(() => showTaxSettings(player, finance));
+      }
+      if (res.selection === 10) {
+        if (!isAdmin(player)) { player.sendMessage("§cOps only (or tag financecore_admin)"); return; }
+        nextForm(() => showCurrencySettings(player, finance));
       }
     });
 }
@@ -625,4 +632,65 @@ function showVault(player, finance, block) {
         player.sendMessage(`§a${finance.formatMoney(v.cash)}`);
       }
     });
+}
+
+
+function showCurrencySettings(player, finance) {
+  const cur = finance.getCurrency();
+  new ActionFormData().title("Currency")
+    .body(`§7World tender currency: §a${cur}\n§8Affects ATM cash in/out`)
+    .button("CAD (Canadian)").button("USD (US)").button("Close")
+    .show(player).then((res) => {
+      if (res.canceled || res.selection === 2) return;
+      const code = res.selection === 0 ? "CAD" : "USD";
+      finance.setCurrency(code);
+      player.sendMessage(`§aCurrency set to ${code}`);
+    });
+}
+
+function showOnlinePay(player, finance, fromAccountId) {
+  const cc = finance.isCarrierCorePresent();
+  new ModalFormData().title("Online pay")
+    .textField("Recipient phone", "4165551234")
+    .textField("Amount", "20")
+    .textField("Memo", cc ? "CarrierCore linked" : "optional")
+    .show(player).then((res) => {
+      if (res.canceled) return;
+      const amount = parseAmount(res.formValues[1]);
+      if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
+      const r = finance.onlinePay(fromAccountId, res.formValues[0], amount, res.formValues[2], player.name);
+      if (!r.ok) { player.sendMessage(`§c${r.error}`); return; }
+      if (r.mode === "instant") {
+        player.sendMessage(`§aPaid ${finance.formatMoney(amount)} to §f${r.recipient}`);
+      } else {
+        player.sendMessage(`§ePayment pending for phone (accept in Bank Book)`);
+      }
+    });
+}
+
+function showBuyPlan(player, finance, accountId) {
+  const plans = finance.listCarrierPlans();
+  const cc = finance.isCarrierCorePresent();
+  const form = new ActionFormData().title("Mobile plans")
+    .body(cc ? "§aCarrierCore detected — plan will bridge" : "§7CarrierCore not loaded — plan stored for when it is");
+  for (const p of plans) {
+    form.button(`${p.name}\n§a${finance.formatMoney(p.price)} §8${p.dataGb}GB · ${p.talkMin} min`);
+  }
+  form.button("Close");
+  form.show(player).then((res) => {
+    if (res.canceled || res.selection === plans.length) return;
+    const plan = plans[res.selection];
+    nextForm(() => {
+      new ModalFormData().title(plan.name).textField("Phone number for plan", "4165551234")
+        .show(player).then((r2) => {
+          if (r2.canceled) return;
+          const out = finance.purchasePlan(player.name, accountId, plan.id, r2.formValues[0]);
+          if (!out.ok) { player.sendMessage(`§c${out.error}`); return; }
+          player.sendMessage(
+            `§aPurchased §f${plan.name}§a for ${finance.formatMoney(plan.price)}\n§7Phone ${out.plan.phone}` +
+            (out.carrierCore ? "\n§aBridged to CarrierCore" : "\n§eStored — enable CarrierCore to apply service")
+          );
+        });
+    });
+  });
 }
