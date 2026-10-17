@@ -85,6 +85,9 @@
     },
     "financecore_usd_coin_dollar": {
       "textures": "textures/items/usd_coin_dollar"
+    },
+    "financecore_bank_manager": {
+      "textures": "textures/items/bank_manager"
     }
   }
 }

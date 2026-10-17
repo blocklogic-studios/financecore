@@ -25,6 +25,45 @@ function isAdmin(player) {
   return false;
 }
 
+function holdingBankManager(player) {
+  try {
+    const equip = player.getComponent("equippable");
+    if (equip) {
+      for (const slot of ["Mainhand", "Offhand", "mainhand", "offhand"]) {
+        try {
+          const it = equip.getEquipment(slot);
+          if (it && it.typeId === "financecore:bank_manager") return true;
+        } catch (e) {}
+      }
+    }
+    const inv = player.getComponent("inventory")?.container;
+    // selected slot often = mainhand; also scan hotbar
+    if (inv) {
+      for (let i = 0; i < 9; i++) {
+        const it = inv.getItem(i);
+        if (it && it.typeId === "financecore:bank_manager") {
+          // prefer if selected - selectedSlot available on some builds
+          try {
+            if (player.selectedSlotIndex === i) return true;
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+  // Final: any hotbar bank manager counts as "holding tool" for mobile
+  try {
+    const inv = player.getComponent("inventory")?.container;
+    if (inv) {
+      for (let i = 0; i < 9; i++) {
+        const it = inv.getItem(i);
+        if (it && it.typeId === "financecore:bank_manager") return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
+
 
 export function setupUIHandlers(finance) {
   world.afterEvents.itemUse.subscribe((event) => {
@@ -33,6 +72,8 @@ export function setupUIHandlers(finance) {
     const id = item.typeId;
     const player = event.source;
     if (id === "financecore:bank_book") nextForm(() => showBankBook(player, finance));
+    else if (id === "financecore:bank_manager")
+      player.sendMessage("§7Bank Manager: §fclick an ATM§7 to configure bank, color, and networks.");
     else if (id === "financecore:debit_card" || id === "financecore:credit_card" || id === "financecore:business_card")
       nextForm(() => showCardMenu(player, finance, item));
     else if (id === "financecore:cheque") nextForm(() => showChequeItem(player, finance, item));
@@ -52,7 +93,11 @@ export function setupUIHandlers(finance) {
     };
     if (id === "financecore:atm" || id.startsWith("financecore:atm_")) {
       event.cancel = true;
-      nextForm(() => showATM(player, finance, block));
+      if (holdingBankManager(player)) {
+        nextForm(() => showATMConfig(player, finance, block));
+      } else {
+        nextForm(() => showATM(player, finance, block));
+      }
     } else if (map[id]) {
       event.cancel = true;
       nextForm(map[id]);
@@ -304,14 +349,24 @@ function showATMOps(player, finance, card, cfg) {
         });
       });
       if (res.selection === 1) nextForm(() => {
-        const held = finance.countInventoryCash(player);
-        new ModalFormData().title("Deposit cash").textField(`Amount (hold ${held.toFixed(2)})`, String(held || 20))
+        const split = finance.countInventoryCashSplit(player);
+        const held = split.total;
+        new ModalFormData()
+          .title("Deposit cash")
+          .textField(
+            `Amount (CAD $${split.cad.toFixed(2)} + USD $${split.usd.toFixed(2)} = $${held.toFixed(2)})`,
+            String(held || 20)
+          )
           .show(player).then((r) => {
             if (r.canceled) return;
             const amount = parseAmount(r.formValues[0]);
             if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-            const out = finance.depositCash(card.accountId, player, amount);
-            player.sendMessage(out.ok ? `§aDeposited` : `§c${out.error}`);
+            const out = finance.depositCash(card.accountId, player, amount, "ALL");
+            player.sendMessage(
+              out.ok
+                ? `§aDeposited ${finance.formatMoney(out.deposited || amount)} · balance ${finance.formatMoney(out.balance)}`
+                : `§c${out.error}`
+            );
           });
       });
       if (res.selection === 2) nextForm(() => showInternalTransfer(player, finance));

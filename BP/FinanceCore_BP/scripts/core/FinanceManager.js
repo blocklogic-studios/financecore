@@ -643,9 +643,23 @@ export class FinanceManager {
     return CARRIER_PLANS.slice();
   }
 
-  countInventoryCash(player) {
+  /** currency: "CAD" | "USD" | "ALL" (default ALL for deposits) */
+  getTenderMapFor(currency = "ALL") {
+    if (currency === "CAD") return TENDER_CAD;
+    if (currency === "USD") return TENDER_USD;
+    return TENDER; // both
+  }
+
+  getDispenseOrderFor(currency = "ALL") {
+    if (currency === "CAD") return DISPENSE_ORDER_CAD;
+    if (currency === "USD") return DISPENSE_ORDER_USD;
+    // Merge both, largest denomination first
+    return [...DISPENSE_ORDER_CAD, ...DISPENSE_ORDER_USD].sort((a, b) => b[1] - a[1]);
+  }
+
+  countInventoryCash(player, currency = "ALL") {
     let total = 0;
-    const map = this.getTenderMap();
+    const map = this.getTenderMapFor(currency);
     try {
       const inv = player.getComponent("inventory")?.container;
       if (!inv) return 0;
@@ -659,13 +673,22 @@ export class FinanceManager {
     return round2(total);
   }
 
-  takeTenderFromPlayer(player, amount) {
+  countInventoryCashSplit(player) {
+    return {
+      cad: this.countInventoryCash(player, "CAD"),
+      usd: this.countInventoryCash(player, "USD"),
+      total: this.countInventoryCash(player, "ALL")
+    };
+  }
+
+  takeTenderFromPlayer(player, amount, currency = "ALL") {
     amount = round2(amount);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
     let need = amount;
     try {
       const inv = player.getComponent("inventory")?.container;
       if (!inv) return 0;
-      for (const [typeId, val] of this.getDispenseOrder()) {
+      for (const [typeId, val] of this.getDispenseOrderFor(currency)) {
         if (need < val - 0.001) continue;
         for (let i = 0; i < inv.size && need >= val - 0.001; i++) {
           const it = inv.getItem(i);
@@ -739,15 +762,23 @@ export class FinanceManager {
     return { ok: true, balance: w.balance, cash: amount };
   }
 
-  depositCash(accountId, player, maxAmount = null) {
-    const available = this.countInventoryCash(player);
+  depositCash(accountId, player, maxAmount = null, currency = "ALL") {
+    const available = this.countInventoryCash(player, currency);
     let amount = available;
-    if (maxAmount != null) amount = Math.min(amount, maxAmount);
+    if (maxAmount != null && Number.isFinite(maxAmount)) amount = Math.min(amount, maxAmount);
     amount = round2(amount);
-    if (amount <= 0) return { ok: false, error: "No CAD tender in inventory" };
-    const taken = this.takeTenderFromPlayer(player, amount);
-    if (taken <= 0) return { ok: false, error: "Could not take tender" };
-    return this.deposit(accountId, taken);
+    if (amount <= 0) {
+      const split = this.countInventoryCashSplit(player);
+      return {
+        ok: false,
+        error: `No tender in inventory (CAD $${split.cad.toFixed(2)}, USD $${split.usd.toFixed(2)})`
+      };
+    }
+    const taken = this.takeTenderFromPlayer(player, amount, currency);
+    if (taken <= 0) return { ok: false, error: "Could not take tender from inventory" };
+    const r = this.deposit(accountId, taken);
+    if (!r.ok) return r;
+    return { ok: true, balance: r.balance, deposited: taken };
   }
 
   // ---------- e-Transfer ----------

@@ -26,7 +26,8 @@
               "financecore:atm_national",
               "financecore:atm_desjardins",
               "financecore:atm_vancity",
-              "financecore:atm_tangerine"
+              "financecore:atm_tangerine",
+              "financecore:bank_manager"
             ]
           }
         ]
