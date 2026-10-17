@@ -153,6 +153,24 @@ function generateCvv() {
   return String(Math.floor(100 + Math.random() * 900));
 }
 
+
+/** CPA-style institution numbers (gameplay) */
+const INST_NUMBERS = {
+  rbc: "003",
+  td: "004",
+  scotiabank: "002",
+  bmo: "001",
+  cibc: "010",
+  national: "006",
+  desjardins: "815",
+  vancity: "809",
+  servus: "846",
+  coastcapital: "809",
+  tangerine: "614",
+  eqbank: "623",
+  generic: "999"
+};
+
 const ACCOUNT_TYPES = {
   chequing: { label: "Chequing", interest: 0 },
   savings: { label: "Savings", interest: 0.0001 },
@@ -363,6 +381,7 @@ export class FinanceManager {
     if (!ACCOUNT_TYPES[type] && type !== "credit") return { ok: false, error: "Invalid account type" };
     const id = `acc_${this.nextIds.account++}`;
     const isBiz = type.startsWith("business") || !!businessName;
+    const banking = this._generateBankingCoords(institutionId, id);
     const acc = {
       id,
       institutionId,
@@ -378,12 +397,79 @@ export class FinanceManager {
       minPayment: 0,
       overdue: false,
       paidTowardStatement: 0,
-      ledger: []
+      ledger: [],
+      // Employer direct-deposit form fields (Canadian style)
+      institutionNumber: banking.institutionNumber,
+      transitNumber: banking.transitNumber,
+      accountNumber: banking.accountNumber,
+      bankName: inst ? inst.name : institutionId
     };
     this.accounts.set(id, acc);
     this.save();
     return { ok: true, account: acc };
   }
+
+  _generateBankingCoords(institutionId, accountId) {
+    const institutionNumber = INST_NUMBERS[institutionId] || INST_NUMBERS.generic;
+    // 5-digit transit (branch)
+    let hash = 0;
+    const seed = String(accountId) + String(institutionId);
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    const transitNumber = String(10000 + (hash % 90000)).padStart(5, "0");
+    // 7–12 digit account number
+    const n = this.nextIds.account || 1000;
+    const accountNumber = String(1000000 + ((hash % 8000000) + n * 17) % 8999999).padStart(7, "0");
+    return { institutionNumber, transitNumber, accountNumber };
+  }
+
+  /** Ensure older accounts get banking coords */
+  ensureBankingCoords(accountId) {
+    const acc = this.accounts.get(accountId);
+    if (!acc) return null;
+    if (!acc.institutionNumber || !acc.transitNumber || !acc.accountNumber) {
+      const b = this._generateBankingCoords(acc.institutionId, acc.id);
+      acc.institutionNumber = b.institutionNumber;
+      acc.transitNumber = b.transitNumber;
+      acc.accountNumber = b.accountNumber;
+      const inst = this.institutions.get(acc.institutionId);
+      acc.bankName = inst ? inst.name : acc.institutionId;
+      this.save();
+    }
+    return acc;
+  }
+
+  getEmployerDepositInfo(accountId) {
+    const acc = this.ensureBankingCoords(accountId);
+    if (!acc) return null;
+    return {
+      bankName: acc.bankName || acc.institutionId,
+      accountHolder: acc.businessName || acc.owner,
+      accountType: acc.type === "savings" || acc.type === "business_savings" ? "Savings" : "Chequing",
+      institutionNumber: acc.institutionNumber,
+      transitNumber: acc.transitNumber,
+      accountNumber: acc.accountNumber,
+      // Common form layout: transit-institution-account
+      paddedFormat: `${acc.transitNumber}-${acc.institutionNumber}-${acc.accountNumber}`,
+      // MICR-style line (gameplay)
+      micrLine: `⑂${acc.transitNumber}⑂ ${acc.institutionNumber}⑈ ${acc.accountNumber}⑈`
+    };
+  }
+
+  pushLedger(accountId, entry) {
+    const acc = this.accounts.get(accountId);
+    if (!acc) return;
+    if (!acc.ledger) acc.ledger = [];
+    acc.ledger.push({ ...entry, at: entry.at || Date.now() });
+    if (acc.ledger.length > 50) acc.ledger = acc.ledger.slice(-50);
+  }
+
+  getTransactionHistory(accountId, limit = 20) {
+    const acc = this.accounts.get(accountId);
+    if (!acc) return [];
+    const list = (acc.ledger || []).slice().reverse();
+    return list.slice(0, limit);
+  }
+
 
   getPlayerAccounts(playerName) {
     return [...this.accounts.values()].filter((a) => a.owner === playerName && a.status === "open");
@@ -414,6 +500,12 @@ export class FinanceManager {
     } else {
       acc.balance = round2(acc.balance + amount);
     }
+    this.pushLedger(accountId, {
+      type: acc.type === "credit" ? "credit_payment" : "deposit",
+      amount,
+      balance: acc.balance,
+      note: "Deposit"
+    });
     this.save();
     return { ok: true, balance: acc.balance };
   }
@@ -432,6 +524,12 @@ export class FinanceManager {
       if (acc.balance < amount) return { ok: false, error: "Insufficient funds" };
       acc.balance = round2(acc.balance - amount);
     }
+    this.pushLedger(accountId, {
+      type: acc.type === "credit" ? "credit_purchase" : "withdrawal",
+      amount: -amount,
+      balance: acc.balance,
+      note: "Withdrawal"
+    });
     this.save();
     return { ok: true, balance: acc.balance };
   }
@@ -444,6 +542,9 @@ export class FinanceManager {
       this.deposit(fromId, amount);
       return d;
     }
+    this.pushLedger(fromId, { type: "transfer_out", amount: -amount, note: `To ${toId}` });
+    this.pushLedger(toId, { type: "transfer_in", amount, note: `From ${fromId}` });
+    this.save();
     return { ok: true };
   }
 

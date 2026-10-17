@@ -137,11 +137,17 @@ function showBankBook(player, finance) {
     body += "\n\n§8Cards:\n" + cards.map((c) => `§7${c.institutionName} ••${c.last4} §8(${c.status})`).join("\n");
   }
   new ActionFormData().title("Bank Book").body(body)
-    .button("Pending e-Transfers").button("Register my phone").button("Close")
+    .button("Pending e-Transfers")
+    .button("Transaction history")
+    .button("Employer deposit info")
+    .button("Register my phone")
+    .button("Close")
     .show(player).then((res) => {
-      if (res.canceled || res.selection === 2) return;
+      if (res.canceled || res.selection === 4) return;
       if (res.selection === 0) nextForm(() => showPendingTransfers(player, finance));
-      if (res.selection === 1) nextForm(() => showRegisterPhone(player, finance));
+      if (res.selection === 1) nextForm(() => showPickAccountHistory(player, finance));
+      if (res.selection === 2) nextForm(() => showEmployerDepositInfo(player, finance));
+      if (res.selection === 3) nextForm(() => showRegisterPhone(player, finance));
     });
 }
 
@@ -348,7 +354,7 @@ function showATMOps(player, finance, card, cfg) {
             .button("Done")
     .show(player)
     .then((res) => {
-      if (res.canceled || res.selection === 5) return;
+      if (res.canceled || res.selection === 6) return;
       if (res.selection === 0) {
         nextForm(() => {
           new ModalFormData()
@@ -415,6 +421,7 @@ function showATMOps(player, finance, card, cfg) {
       if (res.selection === 2) nextForm(() => showInternalTransfer(player, finance));
       if (res.selection === 3) nextForm(() => showETransfer(player, finance, card.accountId));
       if (res.selection === 4) nextForm(() => showDirectDepositMenu(player, finance));
+      if (res.selection === 5) nextForm(() => showTransactionHistory(player, finance, card.accountId));
     });
 }
 
@@ -616,47 +623,210 @@ function showIssueCheque(player, finance) {
 
 
 function showDirectDepositMenu(player, finance) {
-  new ActionFormData().title("Direct Deposit")
-    .body("§7Payroll must pull from a source account you own")
-    .button("One-time (from → to)").button("Schedule recurring").button("My schedules").button("Close")
-    .show(player).then((res) => {
-      if (res.canceled || res.selection === 3) return;
-      if (res.selection === 0) nextForm(() => pickAccountForm(player, finance, "Source (pay from)", (fromAcc) => {
-        nextForm(() => pickAccountForm(player, finance, "Destination", (toAcc) => {
-          if (fromAcc.id === toAcc.id) { player.sendMessage("§cPick different accounts"); return; }
-          new ModalFormData().title("DD").textField("Amount", "500").textField("Label", "Payroll")
-            .show(player).then((r) => {
-              if (r.canceled) return;
-              const amount = parseAmount(r.formValues[0]);
-              if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-              const out = finance.directDeposit(toAcc.id, amount, r.formValues[1] || "Payroll", "", fromAcc.id);
-              player.sendMessage(out.ok ? "§aDirect deposit done" : `§c${out.error}`);
+  new ActionFormData()
+    .title("Direct deposit")
+    .body("Set up payroll deposit or view the form your employer needs")
+    .button("Employer form (routing details)")
+    .button("Schedule recurring deposit")
+    .button("Run deposit now")
+    .button("My schedules")
+    .button("Back")
+    .show(player)
+    .then((res) => {
+      if (res.canceled || res.selection === 4) return;
+      if (res.selection === 0) nextForm(() => showEmployerDepositInfo(player, finance));
+      if (res.selection === 1) {
+        nextForm(() => {
+          pickAccountForm(player, finance, "Deposit into", (toAcc) => {
+            nextForm(() => {
+              new ModalFormData()
+                .title("Recurring direct deposit")
+                .textField("Amount", "1200")
+                .textField("Source label", "Employer payroll")
+                .textField("Memo", "Pay")
+                .show(player)
+                .then((r) => {
+                  if (r.canceled) return;
+                  const amount = parseAmount(r.formValues[0]);
+                  if (amount == null) {
+                    player.sendMessage("Invalid amount");
+                    return;
+                  }
+                  const out = finance.scheduleDirectDeposit(
+                    player.name,
+                    null,
+                    toAcc.id,
+                    amount,
+                    r.formValues[1] || "Payroll",
+                    r.formValues[2] || ""
+                  );
+                  player.sendMessage(out.ok ? "Scheduled " + out.id : String(out.error));
+                  const info = finance.getEmployerDepositInfo(toAcc.id);
+                  if (info) {
+                    player.sendMessage("§7Give your employer:");
+                    player.sendMessage("§f" + info.bankName);
+                    player.sendMessage("§7Transit §f" + info.transitNumber + " §7Inst §f" + info.institutionNumber);
+                    player.sendMessage("§7Account §f" + info.accountNumber);
+                  }
+                });
             });
-        }));
-      }));
-      if (res.selection === 1) nextForm(() => pickAccountForm(player, finance, "Source (pay from)", (fromAcc) => {
-        nextForm(() => pickAccountForm(player, finance, "Destination", (toAcc) => {
-          new ModalFormData().title("Recurring DD").textField("Amount", "500").textField("Hours", "24").textField("Label", "Payroll")
-            .show(player).then((r) => {
-              if (r.canceled) return;
-              const amount = parseAmount(r.formValues[0]);
-              if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-              const hours = Number(r.formValues[1]);
-              if (!Number.isFinite(hours) || hours <= 0) { player.sendMessage("§cInvalid interval"); return; }
-              const out = finance.scheduleDirectDeposit(player.name, toAcc.id, amount, hours, r.formValues[2] || "Payroll", fromAcc.id);
-              player.sendMessage(out.ok ? `§aScheduled ${out.dd.id}` : `§c${out.error}`);
-            });
-        }));
-      }));
+          });
+        });
+      }
       if (res.selection === 2) {
+        nextForm(() => {
+          pickAccountForm(player, finance, "Deposit into", (toAcc) => {
+            nextForm(() => {
+              new ModalFormData()
+                .title("One-time direct deposit")
+                .textField("Amount", "500")
+                .textField("Source", "Payroll")
+                .show(player)
+                .then((r) => {
+                  if (r.canceled) return;
+                  const amount = parseAmount(r.formValues[0]);
+                  if (amount == null) {
+                    player.sendMessage("Invalid amount");
+                    return;
+                  }
+                  const out = finance.directDeposit(
+                    toAcc.id,
+                    amount,
+                    r.formValues[1] || "Direct Deposit",
+                    "",
+                    null
+                  );
+                  player.sendMessage(out.ok ? "Deposited " + finance.formatMoney(amount) : String(out.error));
+                });
+            });
+          });
+        });
+      }
+      if (res.selection === 3) {
         const list = finance.listDirectDeposits(player.name);
         const f = new ActionFormData().title("Schedules");
-        if (!list.length) f.body("§7None").button("OK");
-        else for (const d of list) f.button(`${d.id}\n${finance.formatMoney(d.amount)} from ${d.fromAccountId || "?"}`);
+        if (!list.length) f.body("None").button("OK");
+        else
+          for (const d of list)
+            f.button(d.id + "\n" + finance.formatMoney(d.amount) + " → " + d.toAccountId);
         f.show(player);
       }
     });
 }
+
+function showEmployerDepositInfo(player, finance) {
+  const accounts = finance.getPlayerAccounts(player.name).filter((a) => a.type !== "credit");
+  if (!accounts.length) {
+    player.sendMessage("No chequing/savings account. Open one at a Teller.");
+    return;
+  }
+  const form = new ActionFormData()
+    .title("Employer deposit form")
+    .body("Pick the account to show on your payroll form");
+  for (const a of accounts) {
+    const inst = finance.getInstitution(a.institutionId);
+    form.button((inst ? inst.name : a.institutionId) + "\n" + a.type + " " + a.id);
+  }
+  form.button("Back");
+  form.show(player).then((res) => {
+    if (res.canceled || res.selection === accounts.length) return;
+    const acc = accounts[res.selection];
+    const info = finance.getEmployerDepositInfo(acc.id);
+    if (!info) {
+      player.sendMessage("Could not build deposit info");
+      return;
+    }
+    const body =
+      "§lBanking details for payroll§r\n\n" +
+      "§7Account holder§r\n§f" +
+      info.accountHolder +
+      "\n\n§7Bank§r\n§f" +
+      info.bankName +
+      "\n\n§7Account type§r\n§f" +
+      info.accountType +
+      "\n\n§7Transit (branch)§r\n§f" +
+      info.transitNumber +
+      "\n\n§7Institution number§r\n§f" +
+      info.institutionNumber +
+      "\n\n§7Account number§r\n§f" +
+      info.accountNumber +
+      "\n\n§7Combined (transit-inst-account)§r\n§f" +
+      info.paddedFormat +
+      "\n\n§8Give these exact numbers to your employer / payroll.";
+    new ActionFormData()
+      .title("Direct deposit form")
+      .body(body)
+      .button("Copy to chat")
+      .button("Transaction history")
+      .button("Done")
+      .show(player)
+      .then((r2) => {
+        if (r2.canceled || r2.selection === 2) return;
+        if (r2.selection === 0) {
+          player.sendMessage("§l§aEmployer direct deposit");
+          player.sendMessage("§7Bank: §f" + info.bankName);
+          player.sendMessage("§7Holder: §f" + info.accountHolder);
+          player.sendMessage("§7Type: §f" + info.accountType);
+          player.sendMessage("§7Transit: §f" + info.transitNumber);
+          player.sendMessage("§7Institution: §f" + info.institutionNumber);
+          player.sendMessage("§7Account: §f" + info.accountNumber);
+          player.sendMessage("§7Format: §f" + info.paddedFormat);
+        }
+        if (r2.selection === 1) nextForm(() => showTransactionHistory(player, finance, acc.id));
+      });
+  });
+}
+
+function showPickAccountHistory(player, finance) {
+  const accounts = finance.getPlayerAccounts(player.name);
+  if (!accounts.length) {
+    player.sendMessage("No accounts");
+    return;
+  }
+  const form = new ActionFormData().title("History — pick account");
+  for (const a of accounts) {
+    const inst = finance.getInstitution(a.institutionId);
+    form.button((inst ? inst.name : "") + "\n" + a.type + " " + finance.formatMoney(a.balance));
+  }
+  form.button("Back");
+  form.show(player).then((res) => {
+    if (res.canceled || res.selection === accounts.length) return;
+    nextForm(() => showTransactionHistory(player, finance, accounts[res.selection].id));
+  });
+}
+
+function showTransactionHistory(player, finance, accountId) {
+  const acc = finance.getAccount(accountId);
+  if (!acc) {
+    player.sendMessage("Account not found");
+    return;
+  }
+  const rows = finance.getTransactionHistory(accountId, 15);
+  const inst = finance.getInstitution(acc.institutionId);
+  let body = "§7" + (inst ? inst.name : "") + " §f" + acc.id + "\n§7Bal " + finance.formatMoney(acc.balance) + "\n\n";
+  if (!rows.length) {
+    body += "§8No transactions yet.";
+  } else {
+    for (const e of rows) {
+      const amt = e.amount != null ? finance.formatMoney(Math.abs(e.amount)) : "";
+      const sign = e.amount != null && e.amount < 0 ? "-" : "+";
+      const when = e.at ? new Date(e.at).toISOString().slice(0, 16).replace("T", " ") : "";
+      const note = e.note || e.type || e.merchant || e.source || "";
+      body += "§f" + sign + amt + " §7" + note + (when ? "\n§8" + when : "") + "\n";
+    }
+  }
+  new ActionFormData()
+    .title("Transactions")
+    .body(body.slice(0, 900))
+    .button("Employer deposit info")
+    .button("Done")
+    .show(player)
+    .then((res) => {
+      if (res.canceled || res.selection === 1) return;
+      if (res.selection === 0) nextForm(() => showEmployerDepositInfo(player, finance));
+    });
+}
+
 
 function showBlockCostAdmin(player, finance) {
   new ModalFormData().title("Block cost").textField("CAD (0=off)", String(finance.settings.costPerBlock || 0))
