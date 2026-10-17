@@ -330,45 +330,90 @@ function showATMCardSession(player, finance, cfg) {
 
 function showATMOps(player, finance, card, cfg) {
   const acc = finance.getAccount(card.accountId);
-  const bal = acc?.type === "credit" ? `owed ${finance.formatMoney(acc.balance)}` : finance.formatMoney(acc?.balance ?? 0);
+  const bal =
+    acc && acc.type === "credit"
+      ? "owed " + finance.formatMoney(acc.balance)
+      : finance.formatMoney(acc ? acc.balance : 0);
   const atmLabel = (cfg && cfg.label) || "ATM";
-  const nets = cfg && cfg.networks ? cfg.networks.join(" · ") : "Interac";
-  new ActionFormData().title(`${atmLabel}`.slice(0, 20) + ` ·•${card.last4}`).body(`§7${card.institutionName}\n§8${nets}\n§a${bal}`)
-    .button("Withdraw cash").button("Deposit cash").button("Transfer").button("e-Transfer")
-    .button("Direct deposit").button("Online pay (phone)")
-    .button("Buy mobile plan").button("Done")
-    .show(player).then((res) => {
+  const nets = cfg && cfg.networks && cfg.networks.length ? cfg.networks.join(" / ") : "Interac";
+  const title = (String(atmLabel).slice(0, 18) + " *" + card.last4).slice(0, 30);
+  new ActionFormData()
+    .title(title)
+    .body(String(card.institutionName || "") + "\n" + nets + "\n" + bal)
+    .button("Withdraw cash")
+    .button("Deposit cash")
+    .button("Transfer")
+    .button("e-Transfer")
+    .button("Direct deposit")
+    .button("Online pay (phone)")
+    .button("Buy mobile plan")
+    .button("Done")
+    .show(player)
+    .then((res) => {
       if (res.canceled || res.selection === 7) return;
-      if (res.selection === 0) nextForm(() => {
-        new ModalFormData().title("Withdraw").textField("Amount CAD", "40").show(player).then((r) => {
-          if (r.canceled) return;
-          const amount = parseAmount(r.formValues[0]);
-          if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-          const out = finance.withdrawCash(card.accountId, amount, player);
-          player.sendMessage(out.ok ? `§aDispensed` : `§c${out.error}`);
+      if (res.selection === 0) {
+        nextForm(() => {
+          new ModalFormData()
+            .title("Withdraw")
+            .textField("Amount", "40")
+            .show(player)
+            .then((r) => {
+              if (r.canceled) return;
+              const amount = parseAmount(r.formValues[0]);
+              if (amount == null) {
+                player.sendMessage("Invalid amount");
+                return;
+              }
+              const out = finance.withdrawCash(card.accountId, amount, player);
+              player.sendMessage(out.ok ? "Dispensed " + finance.formatMoney(amount) : String(out.error));
+            });
         });
-      });
-      if (res.selection === 1) nextForm(() => {
-        const split = finance.countInventoryCashSplit(player);
-        const held = split.total;
-        new ModalFormData()
-          .title("Deposit cash")
-          .textField(
-            `Amount (CAD $${split.cad.toFixed(2)} + USD $${split.usd.toFixed(2)} = $${held.toFixed(2)})`,
-            String(held || 20)
-          )
-          .show(player).then((r) => {
-            if (r.canceled) return;
-            const amount = parseAmount(r.formValues[0]);
-            if (amount == null) { player.sendMessage("§cInvalid amount"); return; }
-            const out = finance.depositCash(card.accountId, player, amount, "ALL");
-            player.sendMessage(
-              out.ok
-                ? `§aDeposited ${finance.formatMoney(out.deposited || amount)} · balance ${finance.formatMoney(out.balance)}`
-                : `§c${out.error}`
-            );
-          });
-      });
+      }
+      if (res.selection === 1) {
+        nextForm(() => {
+          let split = { cad: 0, usd: 0, total: 0 };
+          try {
+            split = finance.countInventoryCashSplit(player);
+          } catch (e) {
+            console.warn("[FinanceCore] cash split", e);
+            split = { cad: 0, usd: 0, total: finance.countInventoryCash(player) || 0 };
+          }
+          const held = split.total || 0;
+          const label =
+            "CAD " +
+            Number(split.cad || 0).toFixed(2) +
+            " USD " +
+            Number(split.usd || 0).toFixed(2);
+          new ModalFormData()
+            .title("Deposit cash")
+            .textField(label, held > 0 ? String(held) : "20")
+            .show(player)
+            .then((r) => {
+              if (r.canceled) return;
+              const amount = parseAmount(r.formValues[0]);
+              if (amount == null) {
+                player.sendMessage("Invalid amount");
+                return;
+              }
+              try {
+                const out = finance.depositCash(card.accountId, player, amount, "ALL");
+                if (out.ok) {
+                  player.sendMessage(
+                    "Deposited " +
+                      finance.formatMoney(out.deposited || amount) +
+                      " Balance " +
+                      finance.formatMoney(out.balance)
+                  );
+                } else {
+                  player.sendMessage(String(out.error || "Deposit failed"));
+                }
+              } catch (e) {
+                console.warn("[FinanceCore] deposit", e);
+                player.sendMessage("Deposit error - check content log");
+              }
+            });
+        });
+      }
       if (res.selection === 2) nextForm(() => showInternalTransfer(player, finance));
       if (res.selection === 3) nextForm(() => showETransfer(player, finance, card.accountId));
       if (res.selection === 4) nextForm(() => showDirectDepositMenu(player, finance));
@@ -376,6 +421,7 @@ function showATMOps(player, finance, card, cfg) {
       if (res.selection === 6) nextForm(() => showBuyPlan(player, finance, card.accountId));
     });
 }
+
 
 function showAccountList(player, finance) {
   const accounts = finance.getPlayerAccounts(player.name);

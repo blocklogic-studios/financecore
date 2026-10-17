@@ -15,7 +15,7 @@ const DEFAULT_INSTITUTIONS = [
   { id: "eqbank", name: "EQ Bank", type: "bank", routing: "0627" }
 ];
 
-const TENDER = {
+const TENDER_CAD = {
   "financecore:bill_5": 5,
   "financecore:bill_10": 10,
   "financecore:bill_20": 20,
@@ -28,7 +28,24 @@ const TENDER = {
   "financecore:coin_toonie": 2
 };
 
-const DISPENSE_ORDER = [
+const TENDER_USD = {
+  "financecore:usd_bill_100": 100,
+  "financecore:usd_bill_50": 50,
+  "financecore:usd_bill_20": 20,
+  "financecore:usd_bill_10": 10,
+  "financecore:usd_bill_5": 5,
+  "financecore:usd_bill_1": 1,
+  "financecore:usd_coin_dollar": 1,
+  "financecore:usd_coin_half": 0.5,
+  "financecore:usd_coin_quarter": 0.25,
+  "financecore:usd_coin_dime": 0.1,
+  "financecore:usd_coin_nickel": 0.05,
+  "financecore:usd_coin_penny": 0.01
+};
+
+const TENDER = { ...TENDER_CAD, ...TENDER_USD };
+
+const DISPENSE_ORDER_CAD = [
   ["financecore:bill_100", 100],
   ["financecore:bill_50", 50],
   ["financecore:bill_20", 20],
@@ -39,6 +56,31 @@ const DISPENSE_ORDER = [
   ["financecore:coin_quarter", 0.25],
   ["financecore:coin_dime", 0.1],
   ["financecore:coin_nickel", 0.05]
+];
+
+const DISPENSE_ORDER_USD = [
+  ["financecore:usd_bill_100", 100],
+  ["financecore:usd_bill_50", 50],
+  ["financecore:usd_bill_20", 20],
+  ["financecore:usd_bill_10", 10],
+  ["financecore:usd_bill_5", 5],
+  ["financecore:usd_bill_1", 1],
+  ["financecore:usd_coin_dollar", 1],
+  ["financecore:usd_coin_half", 0.5],
+  ["financecore:usd_coin_quarter", 0.25],
+  ["financecore:usd_coin_dime", 0.1],
+  ["financecore:usd_coin_nickel", 0.05],
+  ["financecore:usd_coin_penny", 0.01]
+];
+
+const DISPENSE_ORDER = DISPENSE_ORDER_CAD;
+
+const CARRIER_PLANS = [
+  { id: "basic_talk", name: "Basic Talk", price: 25, dataGb: 0, talkMin: 200, desc: "Talk-focused prepaid" },
+  { id: "basic_data", name: "Basic Data 5GB", price: 35, dataGb: 5, talkMin: 100, desc: "Light data prepaid" },
+  { id: "plus_15", name: "Plus 15GB", price: 55, dataGb: 15, talkMin: 500, desc: "Everyday plan" },
+  { id: "unlimited", name: "Unlimited", price: 85, dataGb: 50, talkMin: 9999, desc: "Heavy use" },
+  { id: "business_fleet", name: "Business Fleet", price: 120, dataGb: 40, talkMin: 2000, desc: "Business lines" }
 ];
 
 const ACCOUNT_TYPES = {
