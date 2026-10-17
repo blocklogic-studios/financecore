@@ -88,6 +88,9 @@
     },
     "financecore_bank_manager": {
       "textures": "textures/items/bank_manager"
+    },
+    "financecore_bank_browser": {
+      "textures": "textures/items/bank_browser"
     }
   }
 }

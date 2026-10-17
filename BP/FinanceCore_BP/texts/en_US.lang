@@ -84,3 +84,6 @@ tile.financecore:atm_vancity.name=Vancity ATM
 tile.financecore:atm_tangerine.name=Tangerine ATM
 item.financecore:bank_manager=Bank Manager
 item.financecore:bank_manager.name=Bank Manager
+
+item.financecore:bank_browser=Bank Browser
+item.financecore:bank_browser.name=Bank Browser

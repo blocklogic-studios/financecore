@@ -83,6 +83,76 @@ const CARRIER_PLANS = [
   { id: "business_fleet", name: "Business Fleet", price: 120, dataGb: 40, talkMin: 2000, desc: "Business lines" }
 ];
 
+
+/** Game BINs (IIN) per institution — Luhn-valid PANs for gameplay only */
+const BANK_BINS = {
+  rbc: { debit: "4510", credit: "4514", brand: "Visa" },
+  td: { debit: "4724", credit: "4536", brand: "Visa" },
+  scotiabank: { debit: "4536", credit: "4537", brand: "Visa" },
+  bmo: { debit: "5007", credit: "5181", brand: "Mastercard" },
+  cibc: { debit: "4506", credit: "4500", brand: "Visa" },
+  national: { debit: "4540", credit: "4541", brand: "Visa" },
+  desjardins: { debit: "4538", credit: "4539", brand: "Visa" },
+  vancity: { debit: "5191", credit: "5192", brand: "Mastercard" },
+  servus: { debit: "5193", credit: "5194", brand: "Mastercard" },
+  coastcapital: { debit: "5195", credit: "5196", brand: "Mastercard" },
+  tangerine: { debit: "4783", credit: "4784", brand: "Visa" },
+  eqbank: { debit: "4785", credit: "4786", brand: "Visa" },
+  generic: { debit: "4000", credit: "4111", brand: "Visa" }
+};
+
+function luhnCheckDigit(partialDigits) {
+  const digits = String(partialDigits).replace(/\D/g, "");
+  let sum = 0;
+  let alt = true;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = parseInt(digits[i], 10);
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
+  }
+  return String((10 - (sum % 10)) % 10);
+}
+
+function luhnValid(pan) {
+  const digits = String(pan).replace(/\D/g, "");
+  if (digits.length < 13 || digits.length > 19) return false;
+  let sum = 0;
+  let alt = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = parseInt(digits[i], 10);
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
+function generatePan(binPrefix, length = 16) {
+  const bin = String(binPrefix).replace(/\D/g, "");
+  let body = bin;
+  while (body.length < length - 1) {
+    body += String(Math.floor(Math.random() * 10));
+  }
+  body = body.slice(0, length - 1);
+  return body + luhnCheckDigit(body);
+}
+
+function formatPanDisplay(pan) {
+  const d = String(pan).replace(/\D/g, "");
+  return d.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+
+function generateCvv() {
+  return String(Math.floor(100 + Math.random() * 900));
+}
+
 const ACCOUNT_TYPES = {
   chequing: { label: "Chequing", interest: 0 },
   savings: { label: "Savings", interest: 0.0001 },
@@ -435,8 +505,14 @@ export class FinanceManager {
     if (!this.consumeBlankCard(player)) return { ok: false, error: "Could not consume blank card" };
 
     const id = `card_${this.nextIds.card++}`;
-    const last4 = String(this.nextIds.card).slice(-4).padStart(4, "0");
     const inst = this.institutions.get(acc.institutionId);
+    const instId = acc.institutionId || "generic";
+    const binInfo = BANK_BINS[instId] || BANK_BINS.generic;
+    const isCredit = cardType === "credit";
+    const bin = isCredit ? binInfo.credit : binInfo.debit;
+    const pan = generatePan(bin, 16);
+    const last4 = pan.slice(-4);
+    const cvv = generateCvv();
     const expiry = new Date();
     expiry.setFullYear(expiry.getFullYear() + 3);
     const expStr = `${String(expiry.getMonth() + 1).padStart(2, "0")}/${String(expiry.getFullYear()).slice(-2)}`;
@@ -449,7 +525,10 @@ export class FinanceManager {
       isBusiness: cardType === "business" || !!acc.businessName,
       institutionId: acc.institutionId,
       institutionName: inst ? inst.name : acc.institutionId,
+      brand: binInfo.brand || "Visa",
+      pan,
       last4,
+      cvv,
       pin: pinStr,
       status: "active",
       expiry: expStr,
@@ -466,10 +545,10 @@ export class FinanceManager {
           : "financecore:debit_card";
 
     const lore = [
-      `§8${card.institutionName}`,
-      `§7•••• •••• •••• ${card.last4}`,
-      `§8Exp ${card.expiry}`,
-      `§7id:${card.id}`
+      `§8${card.institutionName} §7${card.brand || ""}`,
+      `§f${formatPanDisplay(card.pan)}`,
+      `§7Exp ${card.expiry}  CVV ${card.cvv}`,
+      `§8id:${card.id}`
     ];
 
     try {
@@ -1406,6 +1485,121 @@ export class FinanceManager {
         return { ok: false, error: String(e2) };
       }
     }
+  }
+
+
+  findCardByPan(pan) {
+    const digits = String(pan || "").replace(/\D/g, "");
+    if (!digits) return null;
+    for (const [, card] of this.cards) {
+      if (card.pan && String(card.pan).replace(/\D/g, "") === digits) return card;
+    }
+    // allow last4 only if unique
+    if (digits.length === 4) {
+      const matches = [...this.cards.values()].filter((c) => c.last4 === digits);
+      if (matches.length === 1) return matches[0];
+    }
+    return null;
+  }
+
+  /**
+   * Online card payment — Luhn check, expiry, CVV, then charge linked account.
+   * Used for plans and in-game browser checkout.
+   */
+  payWithCard({ pan, expiry, cvv, amount, merchant = "Online", playerName = null }) {
+    const digits = String(pan || "").replace(/\D/g, "");
+    if (!luhnValid(digits)) return { ok: false, error: "Invalid card number (Luhn failed)" };
+    const card = this.findCardByPan(digits);
+    if (!card) return { ok: false, error: "Card not on file" };
+    if (card.status !== "active") return { ok: false, error: `Card ${card.status}` };
+    if (this.isCardExpired(card)) return { ok: false, error: "Card expired" };
+    if (expiry) {
+      const norm = String(expiry).replace(/\s/g, "");
+      if (norm && card.expiry && norm !== card.expiry && norm !== card.expiry.replace("/", "")) {
+        // soft: allow MMYY vs MM/YY
+        const a = norm.replace(/\D/g, "");
+        const b = String(card.expiry).replace(/\D/g, "");
+        if (a !== b) return { ok: false, error: "Expiry mismatch" };
+      }
+    }
+    if (cvv != null && String(cvv).trim() !== "" && String(card.cvv) !== String(cvv).trim()) {
+      return { ok: false, error: "CVV incorrect" };
+    }
+    if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
+    amount = round2(amount);
+    const w = this.withdraw(card.accountId, amount);
+    if (!w.ok) return w;
+    const acc = this.accounts.get(card.accountId);
+    if (acc) {
+      if (!acc.ledger) acc.ledger = [];
+      acc.ledger.push({
+        type: "online_card",
+        amount,
+        merchant: String(merchant).slice(0, 40),
+        panLast4: card.last4,
+        at: Date.now()
+      });
+      if (acc.ledger.length > 40) acc.ledger = acc.ledger.slice(-40);
+    }
+    this._pushBridgeEvent({
+      type: "online_card_pay",
+      amount,
+      merchant,
+      last4: card.last4,
+      institutionId: card.institutionId,
+      owner: card.owner,
+      at: Date.now()
+    });
+    this.save();
+    return { ok: true, balance: w.balance, card, amount };
+  }
+
+  purchasePlanWithCard(playerName, planId, phone, pan, expiry, cvv) {
+    const plan = CARRIER_PLANS.find((p) => p.id === planId);
+    if (!plan) return { ok: false, error: "Unknown plan" };
+    const pay = this.payWithCard({
+      pan,
+      expiry,
+      cvv,
+      amount: plan.price,
+      merchant: `Carrier plan: ${plan.name}`,
+      playerName
+    });
+    if (!pay.ok) return pay;
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length < 7) {
+      // refund
+      this.deposit(pay.card.accountId, plan.price);
+      return { ok: false, error: "Invalid phone for plan" };
+    }
+    const record = {
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.price,
+      dataGb: plan.dataGb,
+      talkMin: plan.talkMin,
+      phone: digits,
+      owner: playerName || pay.card.owner,
+      paidWithLast4: pay.card.last4,
+      carrierCore: this.isCarrierCorePresent(),
+      purchasedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+    };
+    this.plans.set(digits, record);
+    try {
+      let bridge = {};
+      const raw = world.getDynamicProperty("carriercore:finance_bridge");
+      if (raw && typeof raw === "string") bridge = JSON.parse(raw);
+      if (!bridge.plans) bridge.plans = {};
+      bridge.plans[digits] = record;
+      if (!bridge.events) bridge.events = [];
+      bridge.events.push({ type: "plan_purchase", phone: digits, planId: plan.id, at: Date.now() });
+      if (bridge.events.length > 40) bridge.events = bridge.events.slice(-40);
+      world.setDynamicProperty("carriercore:finance_bridge", JSON.stringify(bridge));
+    } catch (e) {}
+    this._pushBridgeEvent({ type: "plan_purchase", ...record });
+    this.save();
+    return { ok: true, plan: record, card: pay.card };
   }
 
   formatMoney(n) {
