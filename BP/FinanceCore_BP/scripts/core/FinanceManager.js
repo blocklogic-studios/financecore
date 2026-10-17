@@ -266,6 +266,7 @@ export class FinanceManager {
 
   tick() {
     this._tick++;
+    if (this._tick % 100 === 0) this.syncCarrierBridgePlans();
     // Interest ~ every 10 min, scaled so ~1 real day ≈ 1 day of APR
     // 12000 ticks ≈ 10 min → 144 intervals/day → rate = daily/144
     if (this._tick % 12000 === 0) {
@@ -1600,6 +1601,21 @@ export class FinanceManager {
     this._pushBridgeEvent({ type: "plan_purchase", ...record });
     this.save();
     return { ok: true, plan: record, card: pay.card };
+  }
+
+
+  syncCarrierBridgePlans() {
+    try {
+      const raw = world.getDynamicProperty("carriercore:finance_bridge");
+      if (!raw || typeof raw !== "string") return;
+      const bridge = JSON.parse(raw);
+      if (!bridge.plans) return;
+      for (const [phone, record] of Object.entries(bridge.plans)) {
+        if (!record) continue;
+        this.plans.set(String(phone).replace(/\D/g, ""), record);
+      }
+      this.save();
+    } catch (e) {}
   }
 
   formatMoney(n) {

@@ -74,8 +74,6 @@ export function setupUIHandlers(finance) {
     if (id === "financecore:bank_book") nextForm(() => showBankBook(player, finance));
     else if (id === "financecore:bank_manager")
       player.sendMessage("§7Bank Manager: §fclick an ATM§7 to configure bank, color, and networks.");
-    else if (id === "financecore:bank_browser")
-      nextForm(() => showBankBrowser(player, finance));
     else if (id === "financecore:debit_card" || id === "financecore:credit_card" || id === "financecore:business_card")
       nextForm(() => showCardMenu(player, finance, item));
     else if (id === "financecore:cheque") nextForm(() => showChequeItem(player, finance, item));
@@ -347,12 +345,10 @@ function showATMOps(player, finance, card, cfg) {
     .button("Transfer")
     .button("e-Transfer")
     .button("Direct deposit")
-    .button("Online pay (phone)")
-    .button("Buy mobile plan")
-    .button("Done")
+            .button("Done")
     .show(player)
     .then((res) => {
-      if (res.canceled || res.selection === 7) return;
+      if (res.canceled || res.selection === 5) return;
       if (res.selection === 0) {
         nextForm(() => {
           new ModalFormData()
@@ -419,8 +415,6 @@ function showATMOps(player, finance, card, cfg) {
       if (res.selection === 2) nextForm(() => showInternalTransfer(player, finance));
       if (res.selection === 3) nextForm(() => showETransfer(player, finance, card.accountId));
       if (res.selection === 4) nextForm(() => showDirectDepositMenu(player, finance));
-      if (res.selection === 5) nextForm(() => showOnlinePay(player, finance, card.accountId));
-      if (res.selection === 6) nextForm(() => showBuyPlan(player, finance, card.accountId));
     });
 }
 
@@ -851,167 +845,7 @@ function showCurrencySettings(player, finance) {
     });
 }
 
-function showOnlinePay(player, finance, fromAccountId) {
-  new ActionFormData()
-    .title("Online pay")
-    .body("Pay with card number (Luhn) or send to a phone")
-    .button("Pay with card number")
-    .button("Pay to phone (e-Transfer style)")
-    .button("Close")
-    .show(player)
-    .then((res) => {
-      if (res.canceled || res.selection === 2) return;
-      if (res.selection === 0) nextForm(() => showCardCheckout(player, finance, "Online merchant", null));
-      if (res.selection === 1) nextForm(() => showPhonePay(player, finance, fromAccountId));
-    });
-}
 
-function showPhonePay(player, finance, fromAccountId) {
-  const cc = finance.isCarrierCorePresent();
-  new ModalFormData()
-    .title("Pay to phone")
-    .textField("Recipient phone", "4165551234")
-    .textField("Amount", "20")
-    .textField("Memo", cc ? "CarrierCore linked" : "optional")
-    .show(player)
-    .then((res) => {
-      if (res.canceled) return;
-      const amount = parseAmount(res.formValues[1]);
-      if (amount == null) {
-        player.sendMessage("Invalid amount");
-        return;
-      }
-      const r = finance.onlinePay(fromAccountId, res.formValues[0], amount, res.formValues[2], player.name);
-      if (!r.ok) {
-        player.sendMessage(String(r.error));
-        return;
-      }
-      if (r.mode === "instant") {
-        player.sendMessage("Paid " + finance.formatMoney(amount) + " to " + r.recipient);
-      } else {
-        player.sendMessage("Payment pending for phone (accept in Bank Book)");
-      }
-    });
-}
 
-function showCardCheckout(player, finance, merchant, fixedAmount) {
-  const held = finance.getHeldCardId(player);
-  let defaultPan = "";
-  if (held) {
-    const c = finance.getCard(held);
-    if (c && c.pan) defaultPan = c.pan;
-  }
-  const amountDefault = fixedAmount != null ? String(fixedAmount) : "25";
-  new ModalFormData()
-    .title("Card checkout")
-    .textField("Card number", defaultPan || "4510...")
-    .textField("Expiry MM/YY", "12/29")
-    .textField("CVV", "123")
-    .textField("Amount", amountDefault)
-    .textField("Merchant", merchant || "Online store")
-    .show(player)
-    .then((res) => {
-      if (res.canceled) return;
-      const amount =
-        fixedAmount != null ? fixedAmount : parseAmount(res.formValues[3]);
-      if (amount == null) {
-        player.sendMessage("Invalid amount");
-        return;
-      }
-      const r = finance.payWithCard({
-        pan: res.formValues[0],
-        expiry: res.formValues[1],
-        cvv: res.formValues[2],
-        amount,
-        merchant: res.formValues[4] || merchant || "Online",
-        playerName: player.name
-      });
-      if (!r.ok) {
-        player.sendMessage(String(r.error));
-        return;
-      }
-      player.sendMessage(
-        "Paid " +
-          finance.formatMoney(amount) +
-          " with ••" +
-          r.card.last4 +
-          " Balance " +
-          finance.formatMoney(r.balance)
-      );
-    });
-}
 
-function showBuyPlan(player, finance, accountId) {
-  const plans = finance.listCarrierPlans();
-  const cc = finance.isCarrierCorePresent();
-  const form = new ActionFormData()
-    .title("Mobile plans")
-    .body(
-      cc
-        ? "CarrierCore detected — pay with card number"
-        : "Pay with card (Luhn). Bridge stored for CarrierCore."
-    );
-  for (const p of plans) {
-    form.button(
-      p.name + "\n" + finance.formatMoney(p.price) + " — " + p.dataGb + "GB / " + p.talkMin + " min"
-    );
-  }
-  form.button("Close");
-  form.show(player).then((res) => {
-    if (res.canceled || res.selection === plans.length) return;
-    const plan = plans[res.selection];
-    nextForm(() => {
-      const held = finance.getHeldCardId(player);
-      let defaultPan = "";
-      if (held) {
-        const c = finance.getCard(held);
-        if (c && c.pan) defaultPan = c.pan;
-      }
-      new ModalFormData()
-        .title(plan.name)
-        .textField("Phone for plan", "4165551234")
-        .textField("Card number", defaultPan || "4510...")
-        .textField("Expiry MM/YY", "12/29")
-        .textField("CVV", "123")
-        .show(player)
-        .then((r2) => {
-          if (r2.canceled) return;
-          const out = finance.purchasePlanWithCard(
-            player.name,
-            plan.id,
-            r2.formValues[0],
-            r2.formValues[1],
-            r2.formValues[2],
-            r2.formValues[3]
-          );
-          if (!out.ok) {
-            player.sendMessage(String(out.error));
-            return;
-          }
-          player.sendMessage(
-            "Plan " +
-              plan.name +
-              " on " +
-              out.plan.phone +
-              " paid with ••" +
-              out.card.last4
-          );
-        });
-    });
-  });
-}
-
-function showBankBrowser(player, finance) {
-  const form = new ActionFormData()
-    .title("Bank Browser")
-    .body("Checkout with your embossed card number (Luhn-checked)")
-    .button("Shop — pay merchant")
-    .button("Buy mobile plan")
-    .button("Close");
-  form.show(player).then((res) => {
-    if (res.canceled || res.selection === 2) return;
-    if (res.selection === 0) nextForm(() => showCardCheckout(player, finance, "Web shop", null));
-    if (res.selection === 1) nextForm(() => showBuyPlan(player, finance, null));
-  });
-}
 
