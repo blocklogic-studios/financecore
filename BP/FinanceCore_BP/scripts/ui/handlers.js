@@ -654,13 +654,13 @@ function showDirectDepositMenu(player, finance) {
                   }
                   const out = finance.scheduleDirectDeposit(
                     player.name,
-                    null,
                     toAcc.id,
                     amount,
+                    24,
                     r.formValues[1] || "Payroll",
-                    r.formValues[2] || ""
+                    null
                   );
-                  player.sendMessage(out.ok ? "Scheduled " + out.id : String(out.error));
+                  player.sendMessage(out.ok ? "Scheduled " + (out.id || out.dd?.id) : String(out.error));
                   const info = finance.getEmployerDepositInfo(toAcc.id);
                   if (info) {
                     player.sendMessage("§7Give your employer:");

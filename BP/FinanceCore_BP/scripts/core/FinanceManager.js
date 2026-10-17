@@ -1181,34 +1181,36 @@ export class FinanceManager {
     return { ok: true, balance: to.balance };
   }
 
-  scheduleDirectDeposit(ownerName, toAccountId, amount, intervalHours, source = "Payroll", fromAccountId = null) {
+  scheduleDirectDeposit(ownerName, toAccountId, amount, intervalHours = 24, source = "Payroll", fromAccountId = null) {
     const to = this.accounts.get(toAccountId);
     if (!to || to.owner !== ownerName) return { ok: false, error: "Account not found" };
     if (!validAmount(amount)) return { ok: false, error: "Invalid amount" };
     amount = round2(amount);
     if (amount <= 0) return { ok: false, error: "Invalid amount" };
-    if (!fromAccountId) return { ok: false, error: "Source account required for payroll" };
-    const from = this.accounts.get(fromAccountId);
-    if (!from || from.status !== "open") return { ok: false, error: "Source account not found" };
-    if (from.id === to.id) return { ok: false, error: "Source and destination must differ" };
-    // Owner must control source OR be admin-scheduled; require same owner for non-op path
-    if (from.owner !== ownerName) return { ok: false, error: "You must own the source account" };
+    // fromAccountId optional — null means external employer payroll (credits only)
+    if (fromAccountId) {
+      const from = this.accounts.get(fromAccountId);
+      if (!from || from.status !== "open") return { ok: false, error: "Source account not found" };
+      if (from.id === to.id) return { ok: false, error: "Source and destination must differ" };
+      if (from.owner !== ownerName) return { ok: false, error: "You must own the source account" };
+    }
     const hours = Math.max(0.25, Number(intervalHours) || 24);
     const id = `dd_${this.nextIds.dd++}`;
     const dd = {
       id,
       owner: ownerName,
       toAccountId,
-      fromAccountId,
+      fromAccountId: fromAccountId || null,
       amount,
-      source,
+      source: source || "Payroll",
+      memo: "",
       intervalMs: hours * 60 * 60 * 1000,
       nextAt: Date.now() + hours * 60 * 60 * 1000,
       active: true
     };
     this.directDeposits.set(id, dd);
     this.save();
-    return { ok: true, dd };
+    return { ok: true, id, dd };
   }
 
   listDirectDeposits(ownerName) {
