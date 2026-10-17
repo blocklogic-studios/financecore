@@ -2,20 +2,19 @@
 
 Multi-bank finance for Minecraft Bedrock **1.26+**.
 
-## v1.3.0 — Branded ATMs
+## v1.3.1 — Pack dependency fix
 
-- Per-bank ATM models: RBC, TD, BMO, Scotiabank, CIBC, National, Desjardins, Vancity, Tangerine, generic
-- Each ATM: logo bar, screen, PIN pad, card slot, dispenser
-- **Configure ATM** (ops / `financecore_admin`): bank, color, networks (Interac, Visa Debit, Mastercard, Plus, Cirrus, THE EXCHANGE)
-- Selecting a bank swaps the world block to that bank’s styled ATM
+- Fresh pack UUIDs (clears client cache)
+- Valid 256x256 pack icons on BP + RP
+- ASCII manifests; BP dependency matches RP UUID + version exactly
+- Resource pack name: **FinanceCore Resources**
 
-Stylized in-game art only — not official bank trademarks.
+### Install (important)
 
-## Install
+1. **Delete** any old FinanceCore BP/RP from the world and from global storage
+2. Download [FinanceCore-v1.3.1.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.3.1/FinanceCore-v1.3.1.mcaddon)
+3. Open the file so **both** packs import
+4. Enable **FinanceCore Resources** and **FinanceCore Behavior**
+5. Turn on **Beta APIs**
 
-1. [FinanceCore-v1.3.0.mcaddon](https://github.com/blocklogic-studios/financecore/releases/download/v1.3.0/FinanceCore-v1.3.0.mcaddon)
-2. Both packs + **Beta APIs**
-
-## Studio
-
-[Blocklogic Studio](https://github.com/blocklogic-studios)
+If BP says missing dependencies, the Resource pack did not import — reinstall the .mcaddon and enable Resources first.
